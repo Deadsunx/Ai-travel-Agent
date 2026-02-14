@@ -1,0 +1,105 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: travel-agent-db
+    environment:
+      POSTGRES_DB: travel_agent
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres123}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - travel-agent-network
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: travel-agent-redis
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-redis123}
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-redis123}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - travel-agent-network
+
+  # FastAPI Backend
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: travel-agent-backend
+    environment:
+      DATABASE_URL: postgresql://postgres:${DB_PASSWORD:-postgres123}@postgres:5432/travel_agent
+      REDIS_URL: redis://:${REDIS_PASSWORD:-redis123}@redis:6379/0
+      # Local Qwen3 Model Configuration (Ollama)
+      OPENAI_API_BASE: http://host.docker.internal:11434/v1
+      OPENAI_API_KEY: ollama
+      MODEL_NAME: qwen3:8b
+      # External API keys for tools
+      SERPAPI_KEY: ${SERPAPI_KEY}
+      RAPIDAPI_KEY: ${RAPIDAPI_KEY}
+      FOURSQUARE_API_KEY: ${FOURSQUARE_API_KEY}
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY}
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    # Add DNS servers to fix external API connectivity
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+    # Allow container to access host's Model Runner
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - travel-agent-network
+
+  # Next.js Frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: travel-agent-frontend
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/.next
+    command: npm run dev -- -H 0.0.0.0
+    networks:
+      - travel-agent-network
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  travel-agent-network:
+    driver: bridge
