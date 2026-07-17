@@ -1,0 +1,12 @@
+# Google Drive sync artifacts
+.tmp.driveupload/
+.tmp.drivedownload/
+
+# Secrets — never commit API keys
+Api keys.txt
+*.env
+.env*
+!.env.example
+
+# Debug artifacts
+debug_params.txt

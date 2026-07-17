@@ -72,8 +72,23 @@ export default function ItineraryDisplay({ data }: ItineraryDisplayProps) {
     const restaurants = Array.isArray(restaurantsData) ? restaurantsData : (restaurantsData?.restaurants || [])
     const budget = budgetData
 
-    const destination = itinerary?.destination || data?.destination || 'Your Destination'
-    const duration = itinerary?.duration_days || itinerary?.duration || data?.duration_days || '?'
+    // Extract destination from any available source (itinerary > budget > flights > fallback)
+    const destination = itinerary?.destination || budget?.destination || flightsData?.destination || data?.destination || 'Your Destination'
+
+    // Parse duration: check itinerary, budget, or fallback
+    const rawDuration = itinerary?.duration_days || itinerary?.duration || budget?.duration_days || data?.duration_days || '?'
+    const duration = typeof rawDuration === 'string' ? rawDuration.replace(/\s*days?\s*/i, '') : rawDuration
+
+    // Extract start date from itinerary, budget, or first flight departure
+    const startDate = itinerary?.start_date || (() => {
+        if (flights.length > 0) {
+            const dep = flights[0].departure_time || flights[0].departure || ''
+            const datePart = dep.split(' ')[0] // "2026-03-05 20:25" -> "2026-03-05"
+            return datePart && datePart.match(/^\d{4}-\d{2}-\d{2}$/) ? datePart : null
+        }
+        return null
+    })()
+
     const dailyPlan = itinerary?.daily_plan || itinerary?.days || []
     const bookingLinks = itinerary?.booking_links || {}
 
@@ -151,7 +166,7 @@ export default function ItineraryDisplay({ data }: ItineraryDisplayProps) {
                     {destination}
                 </h2>
                 <p className="text-gray-500 mt-1">
-                    {duration} days • {itinerary?.start_date ? formatDate(itinerary.start_date) : 'Flexible dates'}
+                    {duration} days • {startDate ? formatDate(startDate) : 'Flexible dates'}
                 </p>
                 {itinerary?.budget_status && (
                     <span className={`inline-flex items-center gap-1 mt-2 px-3 py-1 rounded-full text-sm font-medium
@@ -180,8 +195,12 @@ export default function ItineraryDisplay({ data }: ItineraryDisplayProps) {
                                 <div>
                                     <p className="font-medium text-gray-800">{flight.airline}</p>
                                     <p className="text-sm text-gray-500">
-                                        {flight.departure_time} → {flight.arrival_time}
+                                        {flight.departure_time || flight.departure || ''} → {flight.arrival_time || flight.arrival || ''}
+                                        {flight.duration && <span className="ml-2 text-gray-400">({flight.duration})</span>}
                                     </p>
+                                    {flight.flight_number && flight.flight_number !== 'N/A' && (
+                                        <p className="text-xs text-gray-400">{flight.flight_number}</p>
+                                    )}
                                 </div>
                                 <div className="text-right">
                                     <p className="font-bold text-primary-600">

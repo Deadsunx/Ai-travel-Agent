@@ -48,8 +48,8 @@ AI Travel Agent PBL ANTGVT/
 │   ├── backend/               # FastAPI & LangChain Agents
 │   ├── scripts/               # Utility and Setup Scripts
 │   ├── docker-compose.yml     # Infrastructure Orchestration
+│   ├── .env                   # API keys (never commit — see .env.example)
 │   └── test_apis.py           # API Verification Utility
-├── Api keys.txt               # API Configuration (Sensitive)
 └── README.md                  # This file
 ```
 
@@ -70,7 +70,7 @@ AI Travel Agent PBL ANTGVT/
    cd ai-travel-agent
    ```
 
-2. Configure your `.env` file with the keys from `Api keys.txt`.
+2. Copy `.env.example` to `.env` and fill in your API keys (never commit this file).
 3. Start the entire stack:
 
    ```bash

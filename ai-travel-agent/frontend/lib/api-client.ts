@@ -14,7 +14,7 @@ export interface ChatRequest {
 }
 
 export interface StreamEvent {
-    type: 'status' | 'result' | 'error' | 'token'
+    type: 'status' | 'result' | 'error' | 'token' | 'cancelled'
     message?: string
     data?: any
 }
@@ -26,7 +26,8 @@ export async function sendMessageStreaming(
     request: ChatRequest,
     onEvent: (event: StreamEvent) => void,
     onComplete: () => void,
-    onError: (error: string) => void
+    onError: (error: string) => void,
+    signal?: AbortSignal
 ): Promise<void> {
     try {
         const response = await fetch(`${API_URL}/api/chat/`, {
@@ -35,6 +36,7 @@ export async function sendMessageStreaming(
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify(request),
+            signal,
         })
 
         if (!response.ok) {
@@ -73,8 +75,21 @@ export async function sendMessageStreaming(
             }
         }
     } catch (error) {
+        if (error instanceof DOMException && error.name === 'AbortError') {
+            onComplete()
+            return
+        }
         onError(error instanceof Error ? error.message : 'Unknown error')
     }
+}
+
+/**
+ * Request cancellation of an in-progress streaming response.
+ */
+export async function cancelStreaming(sessionId: string): Promise<void> {
+    await fetch(`${API_URL}/api/chat/cancel/${sessionId}`, {
+        method: 'POST',
+    })
 }
 
 /**

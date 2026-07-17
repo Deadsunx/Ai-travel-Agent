@@ -9,6 +9,7 @@ interface BudgetBreakdownProps {
             flights?: number
             accommodation?: number
             food?: number
+            transport?: number
             activities?: number
             miscellaneous?: number
             buffer_10_percent?: number
@@ -24,14 +25,26 @@ interface BudgetBreakdownProps {
 }
 
 export default function BudgetBreakdown({ data }: BudgetBreakdownProps) {
+    // Support both the structured "breakdown" format and the flat "daily_breakdown" format from budget_calculator
     const breakdown = data.breakdown || {}
+    const dailyBreakdown = (data as any).daily_breakdown || {}
+    const hasDailyBreakdown = Object.keys(dailyBreakdown).length > 0
+
     const withinBudget = data.within_budget !== false
     const percentageUsed = data.percentage_used || 0
 
-    const items = [
+    // Build items from whichever format is available
+    const items = hasDailyBreakdown ? [
+        { label: 'Accommodation', value: dailyBreakdown.accommodation || 0, icon: Hotel, color: 'text-emerald-500' },
+        { label: 'Food', value: dailyBreakdown.food || 0, icon: Utensils, color: 'text-orange-500' },
+        { label: 'Transport', value: dailyBreakdown.transport || 0, icon: Plane, color: 'text-blue-500' },
+        { label: 'Activities', value: dailyBreakdown.activities || 0, icon: Ticket, color: 'text-purple-500' },
+        { label: 'Miscellaneous', value: dailyBreakdown.miscellaneous || 0, icon: Package, color: 'text-gray-500' },
+    ] : [
         { label: 'Flights', value: breakdown.flights || 0, icon: Plane, color: 'text-blue-500' },
         { label: 'Accommodation', value: breakdown.accommodation || 0, icon: Hotel, color: 'text-emerald-500' },
         { label: 'Food', value: breakdown.food || 0, icon: Utensils, color: 'text-orange-500' },
+        { label: 'Transport', value: breakdown.transport || 0, icon: Plane, color: 'text-sky-500' },
         { label: 'Activities', value: breakdown.activities || 0, icon: Ticket, color: 'text-purple-500' },
         { label: 'Miscellaneous', value: breakdown.miscellaneous || 0, icon: Package, color: 'text-gray-500' },
         { label: 'Buffer (10%)', value: breakdown.buffer_10_percent || 0, icon: Shield, color: 'text-amber-500' },
@@ -59,31 +72,59 @@ export default function BudgetBreakdown({ data }: BudgetBreakdownProps) {
 
             {/* Totals */}
             <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-gray-700">Total (with buffer)</span>
-                    <span className="text-lg font-bold text-gray-900">
-                        {formatCurrency(data.total_with_buffer || 0)}
-                    </span>
-                </div>
+                {/* Support both formats */}
+                {hasDailyBreakdown ? (
+                    <>
+                        <div className="flex items-center justify-between">
+                            <span className="text-sm text-gray-600">Daily Total (per person)</span>
+                            <span className="text-sm font-medium text-gray-700">
+                                {formatCurrency((data as any).daily_total_per_person || 0)}
+                            </span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                            <span className="text-sm font-medium text-gray-700">Total (per person)</span>
+                            <span className="text-lg font-bold text-gray-900">
+                                {formatCurrency((data as any).total_per_person || 0)}
+                            </span>
+                        </div>
+                        {(data as any).travelers > 1 && (
+                            <div className="flex items-center justify-between">
+                                <span className="text-sm text-gray-600">Total for {(data as any).travelers} travelers</span>
+                                <span className="text-sm font-medium text-gray-700">
+                                    {formatCurrency((data as any).total_for_group || 0)}
+                                </span>
+                            </div>
+                        )}
+                    </>
+                ) : (
+                    <>
+                        <div className="flex items-center justify-between">
+                            <span className="text-sm font-medium text-gray-700">Total (with buffer)</span>
+                            <span className="text-lg font-bold text-gray-900">
+                                {formatCurrency(data.total_with_buffer || 0)}
+                            </span>
+                        </div>
 
-                {data.budget_limit !== undefined && data.budget_limit > 0 && (
-                    <div className="flex items-center justify-between">
-                        <span className="text-sm text-gray-600">Budget Limit</span>
-                        <span className="text-sm font-medium text-gray-700">
-                            {formatCurrency(data.budget_limit)}
-                        </span>
-                    </div>
-                )}
+                        {data.budget_limit !== undefined && data.budget_limit > 0 && (
+                            <div className="flex items-center justify-between">
+                                <span className="text-sm text-gray-600">Budget Limit</span>
+                                <span className="text-sm font-medium text-gray-700">
+                                    {formatCurrency(data.budget_limit)}
+                                </span>
+                            </div>
+                        )}
 
-                {data.remaining_budget !== undefined && (
-                    <div className="flex items-center justify-between">
-                        <span className="text-sm text-gray-600">Remaining</span>
-                        <span className={`text-sm font-medium ${data.remaining_budget >= 0 ? 'text-emerald-600' : 'text-red-600'
-                            }`}>
-                            {formatCurrency(Math.abs(data.remaining_budget))}
-                            {data.remaining_budget < 0 && ' over'}
-                        </span>
-                    </div>
+                        {data.remaining_budget !== undefined && (
+                            <div className="flex items-center justify-between">
+                                <span className="text-sm text-gray-600">Remaining</span>
+                                <span className={`text-sm font-medium ${data.remaining_budget >= 0 ? 'text-emerald-600' : 'text-red-600'
+                                    }`}>
+                                    {formatCurrency(Math.abs(data.remaining_budget))}
+                                    {data.remaining_budget < 0 && ' over'}
+                                </span>
+                            </div>
+                        )}
+                    </>
                 )}
             </div>
 
@@ -122,11 +163,12 @@ export default function BudgetBreakdown({ data }: BudgetBreakdownProps) {
                 </span>
             </div>
 
-            {/* Recommendations */}
-            {data.recommendations && data.recommendations.length > 0 && (
+            {/* Recommendations / Tips */}
+            {(data.recommendations || (data as any).tips) && (data.recommendations || (data as any).tips).length > 0 && (
                 <div className="space-y-1">
-                    {data.recommendations.map((rec, index) => (
-                        <p key={index} className="text-sm text-gray-600">{rec}</p>
+                    <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Tips</p>
+                    {(data.recommendations || (data as any).tips).map((rec: string, index: number) => (
+                        <p key={index} className="text-sm text-gray-600">• {rec}</p>
                     ))}
                 </div>
             )}

@@ -1,10 +1,10 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { Send, Loader2 } from 'lucide-react'
+import { Send, Square } from 'lucide-react'
 import MessageBubble from './MessageBubble'
 import StreamingIndicator from './StreamingIndicator'
-import { sendMessageStreaming, generateSessionId, StreamEvent } from '@/lib/api-client'
+import { sendMessageStreaming, generateSessionId, StreamEvent, cancelStreaming } from '@/lib/api-client'
 import { Message } from '@/lib/types'
 
 interface ChatInterfaceProps {
@@ -21,6 +21,10 @@ export default function ChatInterface({ onItineraryGenerated, selectedModel = 'q
     const [sessionId, setSessionId] = useState<string>('')
     const [mounted, setMounted] = useState(false)
     const messagesEndRef = useRef<HTMLDivElement>(null)
+    const abortControllerRef = useRef<AbortController | null>(null)
+    const stoppedByUserRef = useRef(false)
+    const stopMessageAddedRef = useRef(false)
+    const streamingTextRef = useRef('')
 
     // Generate session ID only on client-side to avoid hydration errors
     useEffect(() => {
@@ -35,6 +39,10 @@ export default function ChatInterface({ onItineraryGenerated, selectedModel = 'q
     useEffect(() => {
         scrollToBottom()
     }, [messages, streamingStatus, streamingText])
+
+    useEffect(() => {
+        streamingTextRef.current = streamingText
+    }, [streamingText])
 
     const handleSubmit = async (e?: React.FormEvent) => {
         e?.preventDefault()
@@ -52,6 +60,9 @@ export default function ChatInterface({ onItineraryGenerated, selectedModel = 'q
         setIsLoading(true)
         setStreamingStatus('🔍 Connecting to AI agent...')
         setStreamingText('')  // Reset streaming text
+        stoppedByUserRef.current = false
+        stopMessageAddedRef.current = false
+        abortControllerRef.current = new AbortController()
 
         try {
             await sendMessageStreaming(
@@ -96,6 +107,20 @@ export default function ChatInterface({ onItineraryGenerated, selectedModel = 'q
                             content: `❌ Error: ${event.message}. Please try again.`,
                             timestamp: new Date()
                         }])
+                    } else if (event.type === 'cancelled') {
+                        if (stopMessageAddedRef.current) return
+                        stoppedByUserRef.current = true
+                        const partialText = streamingTextRef.current.trim()
+                        setStreamingStatus('')
+                        setStreamingText('')
+                        stopMessageAddedRef.current = true
+                        setMessages(prev => [...prev, {
+                            role: 'assistant',
+                            content: partialText
+                                ? `${partialText}\n\n⏹️ Generation stopped.`
+                                : '⏹️ Generation stopped.',
+                            timestamp: new Date()
+                        }])
                     }
                 },
                 // onComplete
@@ -103,9 +128,17 @@ export default function ChatInterface({ onItineraryGenerated, selectedModel = 'q
                     setIsLoading(false)
                     setStreamingStatus('')
                     setStreamingText('')
+                    abortControllerRef.current = null
                 },
                 // onError
                 (error: string) => {
+                    if (stoppedByUserRef.current) {
+                        setIsLoading(false)
+                        setStreamingStatus('')
+                        setStreamingText('')
+                        abortControllerRef.current = null
+                        return
+                    }
                     setIsLoading(false)
                     setStreamingStatus('')
                     setMessages(prev => [...prev, {
@@ -113,12 +146,43 @@ export default function ChatInterface({ onItineraryGenerated, selectedModel = 'q
                         content: `❌ Connection error: ${error}. Please check if the backend is running.`,
                         timestamp: new Date()
                     }])
-                }
+                },
+                abortControllerRef.current.signal
             )
         } catch (error) {
             setIsLoading(false)
             setStreamingStatus('')
         }
+    }
+
+    const handleStop = async () => {
+        if (!isLoading || !sessionId) return
+
+        stoppedByUserRef.current = true
+        setStreamingStatus('⏹️ Stopping generation...')
+
+        try {
+            await cancelStreaming(sessionId)
+        } catch (_error) {
+            // Local abort still stops client streaming even if cancel endpoint fails.
+        }
+
+        abortControllerRef.current?.abort()
+        abortControllerRef.current = null
+
+        const partialText = streamingTextRef.current.trim()
+        setStreamingText('')
+        setStreamingStatus('')
+        setIsLoading(false)
+
+        stopMessageAddedRef.current = true
+        setMessages(prev => [...prev, {
+            role: 'assistant',
+            content: partialText
+                ? `${partialText}\n\n⏹️ Generation stopped.`
+                : '⏹️ Generation stopped.',
+            timestamp: new Date()
+        }])
     }
 
     const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -211,8 +275,9 @@ export default function ChatInterface({ onItineraryGenerated, selectedModel = 'q
                     disabled={isLoading}
                 />
                 <button
-                    type="submit"
-                    disabled={isLoading || !input.trim()}
+                    type={isLoading ? 'button' : 'submit'}
+                    onClick={isLoading ? handleStop : undefined}
+                    disabled={!isLoading && !input.trim()}
                     className="px-5 py-3 bg-gradient-to-r from-primary-600 to-primary-700 text-white 
                    rounded-xl font-medium shadow-lg shadow-primary-500/25
                    hover:shadow-xl hover:shadow-primary-500/30 
@@ -221,7 +286,10 @@ export default function ChatInterface({ onItineraryGenerated, selectedModel = 'q
                    flex items-center gap-2"
                 >
                     {isLoading ? (
-                        <Loader2 className="w-5 h-5 animate-spin" />
+                        <>
+                            <Square className="w-4 h-4 fill-current" />
+                            <span className="text-sm">Stop</span>
+                        </>
                     ) : (
                         <Send className="w-5 h-5" />
                     )}

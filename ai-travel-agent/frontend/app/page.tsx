@@ -50,6 +50,7 @@ export default function Home() {
                                 className="bg-gray-100 dark:bg-gray-800 border-none rounded-lg text-sm px-3 py-2 focus:ring-2 focus:ring-primary-500 outline-none"
                             >
                                 <option value="qwen3:8b">Qwen3:8b</option>
+                                <option value="qwen3.5:latest">Qwen3.5</option>
                                 <option value="gemma2:9b">Gemma2:9b</option>
                                 <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
                             </select>

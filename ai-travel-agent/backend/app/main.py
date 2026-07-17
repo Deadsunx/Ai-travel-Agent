@@ -94,12 +94,13 @@ async def root():
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request, exc):
-    """Global exception handler"""
+    """Global exception handler — log details server-side, return a generic message."""
+    import logging
+    logging.getLogger("app").exception("Unhandled error on %s %s", request.method, request.url.path)
     return JSONResponse(
         status_code=500,
         content={
             "error": "Internal server error",
-            "detail": str(exc),
             "message": "Something went wrong. Please try again."
         }
     )
