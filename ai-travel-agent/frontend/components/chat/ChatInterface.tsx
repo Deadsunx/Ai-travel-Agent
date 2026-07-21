@@ -1,111 +1,186 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { Send, Square } from 'lucide-react'
+import { ArrowDown, ArrowRight, Square } from 'lucide-react'
 import MessageBubble from './MessageBubble'
 import StreamingIndicator from './StreamingIndicator'
 import { sendMessageStreaming, generateSessionId, StreamEvent, cancelStreaming } from '@/lib/api-client'
 import { Message } from '@/lib/types'
+import { IDLE_SOURCES, SourceKey, SourceMap } from '@/components/ui/SourceLedger'
+import Prose from './Prose'
 
 interface ChatInterfaceProps {
     onItineraryGenerated?: (data: any) => void
+    onSourcesChange?: (sources: SourceMap) => void
     selectedModel?: string
 }
 
-export default function ChatInterface({ onItineraryGenerated, selectedModel = 'qwen3:8b' }: ChatInterfaceProps) {
+/**
+ * The backend streams one status per resolved source, e.g.
+ *   "✈️ Flights: found 2 options (estimated)"
+ * Map those onto the ledger rows so the hero reflects real pipeline state.
+ */
+function readSourceStatus(status: string): { key: SourceKey; count: number; estimated: boolean } | null {
+    const match = status.match(/(Flights|Hotels|Restaurants|Sights):\s*found\s+(\d+)/i)
+    if (!match) return null
+
+    const keyByLabel: Record<string, SourceKey> = {
+        flights: 'flights',
+        hotels: 'stays',
+        restaurants: 'eateries',
+        sights: 'sights',
+    }
+
+    return {
+        key: keyByLabel[match[1].toLowerCase()],
+        count: parseInt(match[2], 10),
+        estimated: /estimated/i.test(status),
+    }
+}
+
+const EXAMPLES = [
+    'Three days in Goa from Mumbai, under ₹30,000',
+    'Five days in Kerala for two, focused on food',
+    'A weekend in Jaipur from Delhi',
+]
+
+export default function ChatInterface({
+    onItineraryGenerated,
+    onSourcesChange,
+    selectedModel = 'qwen3:8b',
+}: ChatInterfaceProps) {
     const [messages, setMessages] = useState<Message[]>([])
     const [input, setInput] = useState('')
     const [isLoading, setIsLoading] = useState(false)
     const [streamingStatus, setStreamingStatus] = useState('')
-    const [streamingText, setStreamingText] = useState('')  // New: for word-by-word streaming
+    const [streamingText, setStreamingText] = useState('')
     const [sessionId, setSessionId] = useState<string>('')
     const [mounted, setMounted] = useState(false)
-    const messagesEndRef = useRef<HTMLDivElement>(null)
+    const [pinnedToBottom, setPinnedToBottom] = useState(true)
+    const scrollRef = useRef<HTMLDivElement>(null)
     const abortControllerRef = useRef<AbortController | null>(null)
     const stoppedByUserRef = useRef(false)
     const stopMessageAddedRef = useRef(false)
     const streamingTextRef = useRef('')
+    const sourcesRef = useRef<SourceMap>(IDLE_SOURCES)
 
-    // Generate session ID only on client-side to avoid hydration errors
     useEffect(() => {
         setSessionId(generateSessionId())
         setMounted(true)
     }, [])
 
-    const scrollToBottom = () => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    // Reading back while the answer streams must not be interrupted.
+    //
+    // Scrolling is applied to the container itself — scrollIntoView() also
+    // scrolls every ancestor, which dragged the whole page down on each token.
+    //
+    // Whether to follow is decided from the DOM at the moment content lands,
+    // never from a flag set earlier. Scroll events are dispatched
+    // asynchronously, so a token arriving in the same frame as the reader's
+    // scroll would be handled with a stale pin and yank them back down —
+    // exactly the glitch this replaces.
+    const prevHeightRef = useRef(0)
+    const isNearBottom = (el: HTMLDivElement, justAdded = 0) =>
+        el.scrollHeight - el.scrollTop - el.clientHeight - justAdded < 80
+
+    const handleScroll = () => {
+        const el = scrollRef.current
+        if (el) setPinnedToBottom(isNearBottom(el))
     }
 
     useEffect(() => {
-        scrollToBottom()
+        const el = scrollRef.current
+        if (!el) return
+
+        // Discount the content this update just appended, so growth alone
+        // never reads as "the reader scrolled away".
+        const justAdded = Math.max(0, el.scrollHeight - prevHeightRef.current)
+        prevHeightRef.current = el.scrollHeight
+
+        const follow = isNearBottom(el, justAdded)
+        if (follow) el.scrollTop = el.scrollHeight
+        setPinnedToBottom(follow)
     }, [messages, streamingStatus, streamingText])
+
+    const jumpToLatest = () => {
+        const el = scrollRef.current
+        if (el) el.scrollTop = el.scrollHeight
+        setPinnedToBottom(true)
+    }
 
     useEffect(() => {
         streamingTextRef.current = streamingText
     }, [streamingText])
 
+    const setSources = (next: SourceMap) => {
+        sourcesRef.current = next
+        onSourcesChange?.(next)
+    }
+
     const handleSubmit = async (e?: React.FormEvent) => {
         e?.preventDefault()
-
         if (!input.trim() || isLoading || !sessionId) return
 
-        const userMessage: Message = {
-            role: 'user',
-            content: input,
-            timestamp: new Date()
-        }
+        const userMessage: Message = { role: 'user', content: input, timestamp: new Date() }
 
         setMessages(prev => [...prev, userMessage])
         setInput('')
         setIsLoading(true)
-        setStreamingStatus('🔍 Connecting to AI agent...')
-        setStreamingText('')  // Reset streaming text
+        // follow the answer they just asked for
+        setPinnedToBottom(true)
+        setStreamingStatus('Reading your request')
+        setStreamingText('')
         stoppedByUserRef.current = false
         stopMessageAddedRef.current = false
         abortControllerRef.current = new AbortController()
 
+        // Every source goes back to searching for a fresh plan.
+        setSources({
+            flights: { state: 'searching', count: 0 },
+            stays: { state: 'searching', count: 0 },
+            eateries: { state: 'searching', count: 0 },
+            sights: { state: 'searching', count: 0 },
+        })
+
         try {
             await sendMessageStreaming(
-                {
-                    message: input,
-                    session_id: sessionId,
-                    model: selectedModel
-                },
-                // onEvent
+                { message: input, session_id: sessionId, model: selectedModel },
                 (event: StreamEvent) => {
                     if (event.type === 'status') {
-                        setStreamingStatus(event.message || '')
+                        const status = event.message || ''
+                        setStreamingStatus(status)
+
+                        const resolved = readSourceStatus(status)
+                        if (resolved) {
+                            setSources({
+                                ...sourcesRef.current,
+                                [resolved.key]: {
+                                    state: resolved.estimated ? 'est' : 'live',
+                                    count: resolved.count,
+                                },
+                            })
+                        }
                     } else if (event.type === 'token') {
-                        // Accumulate streaming text word-by-word
-                        const content = (event as any).content || ''
-                        setStreamingText(prev => prev + content)
+                        setStreamingText(prev => prev + ((event as any).content || ''))
                     } else if (event.type === 'result') {
                         const result = event.data
-
-                        // Create assistant message with the FULL response
-                        const assistantMessage: Message = {
+                        setMessages(prev => [...prev, {
                             role: 'assistant',
-                            content: result.response || 'Trip plan generated successfully!',
+                            content: result.response || 'Trip plan ready.',
                             timestamp: new Date(),
-                            data: result
-                        }
-
-                        setMessages(prev => [...prev, assistantMessage])
-                        setStreamingText('')  // Clear streaming text
-
-                        // Pass itinerary to parent
-                        if (onItineraryGenerated && result) {
-                            onItineraryGenerated(result)
-                        }
-
+                            data: result,
+                        }])
+                        setStreamingText('')
                         setStreamingStatus('')
+                        if (onItineraryGenerated && result) onItineraryGenerated(result)
                     } else if (event.type === 'error') {
                         setStreamingStatus('')
                         setStreamingText('')
+                        setSources(IDLE_SOURCES)
                         setMessages(prev => [...prev, {
                             role: 'assistant',
-                            content: `❌ Error: ${event.message}. Please try again.`,
-                            timestamp: new Date()
+                            content: `The search failed: ${String(event.message || '').replace(/\.$/, '')}. Try again, or rephrase the trip.`,
+                            timestamp: new Date(),
                         }])
                     } else if (event.type === 'cancelled') {
                         if (stopMessageAddedRef.current) return
@@ -116,40 +191,33 @@ export default function ChatInterface({ onItineraryGenerated, selectedModel = 'q
                         stopMessageAddedRef.current = true
                         setMessages(prev => [...prev, {
                             role: 'assistant',
-                            content: partialText
-                                ? `${partialText}\n\n⏹️ Generation stopped.`
-                                : '⏹️ Generation stopped.',
-                            timestamp: new Date()
+                            content: partialText ? `${partialText}\n\n*Stopped.*` : '*Stopped.*',
+                            timestamp: new Date(),
                         }])
                     }
                 },
-                // onComplete
                 () => {
                     setIsLoading(false)
                     setStreamingStatus('')
                     setStreamingText('')
                     abortControllerRef.current = null
                 },
-                // onError
                 (error: string) => {
-                    if (stoppedByUserRef.current) {
-                        setIsLoading(false)
-                        setStreamingStatus('')
-                        setStreamingText('')
-                        abortControllerRef.current = null
-                        return
-                    }
                     setIsLoading(false)
                     setStreamingStatus('')
+                    setStreamingText('')
+                    abortControllerRef.current = null
+                    if (stoppedByUserRef.current) return
+                    setSources(IDLE_SOURCES)
                     setMessages(prev => [...prev, {
                         role: 'assistant',
-                        content: `❌ Connection error: ${error}. Please check if the backend is running.`,
-                        timestamp: new Date()
+                        content: `Can't reach the desk: ${error}. Check that the backend is running.`,
+                        timestamp: new Date(),
                     }])
                 },
                 abortControllerRef.current.signal
             )
-        } catch (error) {
+        } catch {
             setIsLoading(false)
             setStreamingStatus('')
         }
@@ -159,12 +227,12 @@ export default function ChatInterface({ onItineraryGenerated, selectedModel = 'q
         if (!isLoading || !sessionId) return
 
         stoppedByUserRef.current = true
-        setStreamingStatus('⏹️ Stopping generation...')
+        setStreamingStatus('Stopping')
 
         try {
             await cancelStreaming(sessionId)
-        } catch (_error) {
-            // Local abort still stops client streaming even if cancel endpoint fails.
+        } catch {
+            // The local abort still ends the client stream.
         }
 
         abortControllerRef.current?.abort()
@@ -174,14 +242,11 @@ export default function ChatInterface({ onItineraryGenerated, selectedModel = 'q
         setStreamingText('')
         setStreamingStatus('')
         setIsLoading(false)
-
         stopMessageAddedRef.current = true
         setMessages(prev => [...prev, {
             role: 'assistant',
-            content: partialText
-                ? `${partialText}\n\n⏹️ Generation stopped.`
-                : '⏹️ Generation stopped.',
-            timestamp: new Date()
+            content: partialText ? `${partialText}\n\n*Stopped.*` : '*Stopped.*',
+            timestamp: new Date(),
         }])
     }
 
@@ -192,48 +257,46 @@ export default function ChatInterface({ onItineraryGenerated, selectedModel = 'q
         }
     }
 
-    const examplePrompts = [
-        "Plan a 3-day trip to Goa under ₹10,000, focusing on food",
-        "Weekend getaway to Mumbai for 2 days",
-        "5-day Kerala trip with focus on nature and beaches"
-    ]
+    // Empty desk sizes to its content; once there is a transcript it becomes
+    // a fixed, scrolling record.
+    const isEmpty = messages.length === 0 && !isLoading
 
     return (
-        <div className="flex flex-col h-[600px]">
-            {/* Header */}
-            <div className="flex items-center justify-between mb-4 pb-4 border-b border-gray-100">
-                <h2 className="text-lg font-semibold text-gray-800">Chat with Travel Agent</h2>
-                {mounted && (
-                    <span className="text-xs text-gray-500">
-                        Session: {sessionId ? sessionId.slice(0, 12) + '...' : 'Initializing...'}
-                    </span>
+        <div className={`flex flex-col ${isEmpty ? '' : 'h-[600px]'}`}>
+            <div className="flex items-baseline justify-between gap-4 pb-4 mb-5 border-b border-rule">
+                <p className="field-label">Transcript</p>
+                {mounted && sessionId && (
+                    <p className="data text-[0.625rem] text-muted/70">
+                        {sessionId.replace('session_', '').slice(0, 8)}
+                    </p>
                 )}
             </div>
 
-            {/* Messages Area */}
-            <div className="flex-1 overflow-y-auto space-y-4 mb-4 pr-2">
-                {messages.length === 0 && (
-                    <div className="text-center py-8">
-                        <div className="text-4xl mb-3">👋</div>
-                        <h3 className="text-lg font-medium text-gray-700 mb-2">
-                            Hi! I'm your AI Travel Agent
-                        </h3>
-                        <p className="text-sm text-gray-500 mb-6">
-                            Tell me about your dream trip and I'll plan it for you!
+            <div className="relative flex-1 min-h-0 flex flex-col">
+                <div
+                    ref={scrollRef}
+                    onScroll={handleScroll}
+                    className={`space-y-6 ${isEmpty ? '' : 'flex-1 overflow-y-auto pr-1'}`}
+                >
+                {isEmpty && (
+                    <div>
+                        <p className="text-sm text-ink mb-1">Nothing planned yet.</p>
+                        <p className="text-sm text-muted mb-6">
+                            Describe a trip to start. Dates and origin are optional.
                         </p>
 
-                        {/* Example prompts */}
-                        <div className="space-y-2">
-                            <p className="text-xs text-gray-400 uppercase tracking-wide">Try these examples:</p>
-                            {examplePrompts.map((prompt, index) => (
+                        <p className="field-label mb-3">Try</p>
+                        <div className="space-y-px">
+                            {EXAMPLES.map((prompt, index) => (
                                 <button
                                     key={index}
                                     onClick={() => setInput(prompt)}
-                                    className="block w-full text-left px-4 py-2 text-sm text-gray-600 
-                           bg-gray-50 rounded-lg hover:bg-primary-50 hover:text-primary-700
-                           transition-colors duration-200"
+                                    className="group w-full flex items-center justify-between gap-3 text-left py-3 border-t border-rule/60 last:border-b transition-colors hover:text-ink"
                                 >
-                                    "{prompt}"
+                                    <span className="text-sm text-muted group-hover:text-ink transition-colors">
+                                        {prompt}
+                                    </span>
+                                    <ArrowRight className="w-3.5 h-3.5 shrink-0 text-muted opacity-0 -translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 transition-all" />
                                 </button>
                             ))}
                         </div>
@@ -244,54 +307,60 @@ export default function ChatInterface({ onItineraryGenerated, selectedModel = 'q
                     <MessageBubble key={index} message={message} />
                 ))}
 
-                {isLoading && streamingStatus && (
+                {isLoading && !streamingText && streamingStatus && (
                     <StreamingIndicator status={streamingStatus} />
                 )}
 
-                {/* Streaming Text Display - shows text as it arrives word-by-word */}
                 {isLoading && streamingText && (
-                    <div className="flex justify-start">
-                        <div className="max-w-[80%] px-4 py-3 bg-gray-100 dark:bg-gray-800 rounded-2xl rounded-bl-none text-gray-800 dark:text-gray-200">
-                            <p className="text-sm whitespace-pre-wrap">
-                                {streamingText}
-                                <span className="inline-block w-1.5 h-4 bg-primary-500 ml-0.5 animate-pulse" />
-                            </p>
+                    <div className="pl-4 border-l-2 border-marigold">
+                        <div className="flex items-baseline justify-between gap-3 mb-2">
+                            <p className="field-label">Desk</p>
+                            <span className="data text-[0.625rem] text-marigold">
+                                writing<span className="animate-blink">_</span>
+                            </span>
                         </div>
+                        <Prose>{streamingText}</Prose>
                     </div>
                 )}
 
-                <div ref={messagesEndRef} />
+                </div>
+
+                {!isEmpty && !pinnedToBottom && (
+                    <button
+                        type="button"
+                        onClick={jumpToLatest}
+                        className="btn-quiet absolute bottom-2 left-1/2 -translate-x-1/2 bg-card shadow-sm animate-rise"
+                    >
+                        <ArrowDown className="w-3 h-3" />
+                        Latest
+                    </button>
+                )}
             </div>
 
-            {/* Input Area */}
-            <form onSubmit={handleSubmit} className="flex gap-3">
+            <form onSubmit={handleSubmit} className="flex gap-2 pt-5 mt-5 border-t border-rule">
                 <input
                     type="text"
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
                     onKeyPress={handleKeyPress}
-                    placeholder="Describe your ideal trip..."
-                    className="input-field"
+                    placeholder="Three days in Goa from Mumbai…"
+                    className="desk-input"
                     disabled={isLoading}
+                    aria-label="Describe your trip"
                 />
                 <button
                     type={isLoading ? 'button' : 'submit'}
                     onClick={isLoading ? handleStop : undefined}
                     disabled={!isLoading && !input.trim()}
-                    className="px-5 py-3 bg-gradient-to-r from-primary-600 to-primary-700 text-white 
-                   rounded-xl font-medium shadow-lg shadow-primary-500/25
-                   hover:shadow-xl hover:shadow-primary-500/30 
-                   disabled:opacity-50 disabled:cursor-not-allowed
-                   transform hover:-translate-y-0.5 transition-all duration-200
-                   flex items-center gap-2"
+                    className="btn-ink shrink-0"
                 >
                     {isLoading ? (
                         <>
-                            <Square className="w-4 h-4 fill-current" />
-                            <span className="text-sm">Stop</span>
+                            <Square className="w-3 h-3 fill-current" />
+                            Stop
                         </>
                     ) : (
-                        <Send className="w-5 h-5" />
+                        'Plan trip'
                     )}
                 </button>
             </form>

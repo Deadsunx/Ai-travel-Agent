@@ -111,6 +111,36 @@ export async function sendMessageSync(request: ChatRequest): Promise<any> {
     return response.json()
 }
 
+export interface ManualPlanRequest {
+    origin: string
+    destination: string
+    departure_date: string
+    return_date: string
+    passengers: number
+    budget: number
+    preferences: string
+    trip_style: string
+}
+
+/**
+ * Build a plan from the form, without the AI agent.
+ */
+export async function createManualPlan(request: ManualPlanRequest): Promise<any> {
+    const response = await fetch(`${API_URL}/api/manual-plan`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(request),
+    })
+
+    const data = await response.json().catch(() => null)
+
+    if (!response.ok) {
+        throw new Error(data?.detail || `Request failed (${response.status})`)
+    }
+
+    return data
+}
+
 /**
  * Save an itinerary
  */

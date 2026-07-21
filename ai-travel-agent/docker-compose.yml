@@ -84,6 +84,10 @@ services:
     container_name: travel-agent-frontend
     environment:
       NEXT_PUBLIC_API_URL: http://localhost:8000
+      # Inotify events don't cross the Windows bind mount, so Next's watcher
+      # misses edits and serves a stale bundle. Poll instead.
+      WATCHPACK_POLLING: "true"
+      CHOKIDAR_USEPOLLING: "true"
     ports:
       - "3000:3000"
     depends_on:

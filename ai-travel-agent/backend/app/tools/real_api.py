@@ -17,30 +17,12 @@ def _get_key(env_var_name):
         return None
     return key
 
-# Simple airport code mapper
-def _get_airport_code(city_name: str) -> str:
-    city_map = {
-        "delhi": "DEL",
-        "new delhi": "DEL",
-        "mumbai": "BOM",
-        "bombay": "BOM",
-        "bangalore": "BLR",
-        "bengaluru": "BLR",
-        "goa": "GOI",
-        "chennai": "MAA",
-        "madras": "MAA",
-        "kolkata": "CCU",
-        "calcutta": "CCU",
-        "hyderabad": "HYD",
-        "pune": "PNQ",
-        "ahmedabad": "AMD",
-        "jaipur": "JAI",
-        "kochi": "COK",
-        "cochin": "COK",
-        "kerala": "COK"
-    }
-    cleaned = city_name.lower().strip()
-    return city_map.get(cleaned, city_name.upper()[:3]) # Fallback to first 3 chars
+from app.tools.airports import resolve_airport
+
+
+def _get_airport_code(city_name: str) -> Optional[str]:
+    """IATA code for a city, or None when it cannot be resolved."""
+    return resolve_airport(city_name)
 
 
 def search_flights_serpapi(origin: str, destination: str, date: str = None, return_date: str = None, passengers: int = 1) -> dict:
@@ -62,10 +44,19 @@ def search_flights_serpapi(origin: str, destination: str, date: str = None, retu
             date = (datetime.now() + timedelta(days=14)).strftime("%Y-%m-%d")
             logger.warning(f"Auto-corrected past/missing date to: {date}")
         
-        # Get airport codes
+        # Get airport codes. An unresolved city is reported rather than
+        # guessed — a wrong code silently returns flights to another city.
         origin_code = _get_airport_code(origin)
         dest_code = _get_airport_code(destination)
-        
+
+        if not origin_code or not dest_code:
+            unknown = origin if not origin_code else destination
+            logger.warning("No airport known for %r; using estimated flights", unknown)
+            return get_mock_flights(
+                origin, destination, date, passengers,
+                reason=f"No airport found for {unknown}",
+            )
+
         params = {
             "engine": "google_flights",
             "departure_id": origin_code,
@@ -349,66 +340,8 @@ def get_mock_hotels(city: str, check_in: str = None, check_out: str = None, gues
     }
 
 
-def search_restaurants_foursquare(location: str, cuisine: str = None, budget: str = "moderate") -> dict:
-    """Search for real restaurants using Foursquare Places API"""
-    try:
-        import requests
-        
-        foursquare_key = _get_key("FOURSQUARE_API_KEY")
-        if not foursquare_key:
-            return get_mock_restaurants(location, cuisine, budget, reason="API Key Missing")
-        
-        url = "https://api.foursquare.com/v3/places/search"
-        headers = {
-            "Accept": "application/json",
-            "Authorization": foursquare_key
-        }
-        
-        params = {
-            "near": location,
-            "categories": "13065",  # Restaurant category
-            "limit": 10
-        }
-        
-        if cuisine and cuisine.lower() != "any":
-            params["query"] = cuisine
-        
-        logger.info(f"Searching for restaurants in: {location}")
-        response = requests.get(url, headers=headers, params=params, timeout=10)
-        response.raise_for_status()
-        data = response.json()
-        
-        restaurants = []
-        for place in data.get("results", [])[:8]:
-            try:
-                # Convert rating from 10-scale to 5-scale
-                rating = place.get("rating", 0) / 2 if "rating" in place else 4.0
-                
-                restaurants.append({
-                    "name": place.get("name", "Unknown Restaurant"),
-                    "cuisine": place.get("categories", [{}])[0].get("name", "Restaurant") if place.get("categories") else "Restaurant",
-                    "rating": round(rating, 1),
-                    "price_level": 2,
-                    "address": place.get("location", {}).get("address", ""),
-                    "popular_dishes": []
-                })
-            except Exception:
-                continue
-        
-        if not restaurants:
-            return get_mock_restaurants(location, cuisine, budget, reason="No Restaurants Found")
-        
-        return {
-            "location": location,
-            "cuisine": cuisine or "all",
-            "budget": budget,
-            "restaurants": restaurants,
-            "source": "Foursquare - Real Data"
-        }
-        
-    except Exception as e:
-        logger.error(f"Foursquare restaurant search error: {e}")
-        return get_mock_restaurants(location, cuisine, budget, reason=f"API Error: {str(e)}")
+# Foursquare v3 was retired on 2026-05-15 (returns 410). Restaurants now come
+# from OpenStreetMap — see app/tools/places_api.py.
 
 
 def get_mock_restaurants(location: str, cuisine: str = None, budget: str = "moderate", reason: str = "API not configured") -> dict:

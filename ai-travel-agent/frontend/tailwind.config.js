@@ -9,50 +9,46 @@ module.exports = {
     theme: {
         extend: {
             colors: {
-                primary: {
-                    50: '#eef2ff',
-                    100: '#e0e7ff',
-                    200: '#c7d2fe',
-                    300: '#a5b4fc',
-                    400: '#818cf8',
-                    500: '#6366f1',
-                    600: '#4f46e5',
-                    700: '#4338ca',
-                    800: '#3730a3',
-                    900: '#312e81',
-                },
-                accent: {
-                    50: '#fdf4ff',
-                    100: '#fae8ff',
-                    200: '#f5d0fe',
-                    300: '#f0abfc',
-                    400: '#e879f9',
-                    500: '#d946ef',
-                    600: '#c026d3',
-                    700: '#a21caf',
-                    800: '#86198f',
-                    900: '#701a75',
-                }
+                // Ticket-stock palette. Values resolve from CSS vars so the
+                // light ("day stock") and dark ("night desk") themes share
+                // one set of class names.
+                paper: 'rgb(var(--paper) / <alpha-value>)',
+                card: 'rgb(var(--card) / <alpha-value>)',
+                ink: 'rgb(var(--ink) / <alpha-value>)',
+                muted: 'rgb(var(--muted) / <alpha-value>)',
+                rule: 'rgb(var(--rule) / <alpha-value>)',
+                stamp: 'rgb(var(--stamp) / <alpha-value>)',
+                est: 'rgb(var(--est) / <alpha-value>)',
+                marigold: 'rgb(var(--marigold) / <alpha-value>)',
             },
-            animation: {
-                'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
-                'bounce-slow': 'bounce 2s infinite',
-                'gradient': 'gradient 8s ease infinite',
-                'shimmer': 'shimmer 2s infinite',
+            fontFamily: {
+                display: ['var(--font-display)', 'system-ui', 'sans-serif'],
+                body: ['var(--font-body)', 'system-ui', 'sans-serif'],
+                mono: ['var(--font-mono)', 'ui-monospace', 'monospace'],
+            },
+            borderRadius: {
+                // Ticket stock is cut, not rounded. Just enough to avoid harshness.
+                stub: '3px',
             },
             keyframes: {
-                gradient: {
-                    '0%, 100%': { backgroundPosition: '0% 50%' },
-                    '50%': { backgroundPosition: '100% 50%' },
+                stampIn: {
+                    '0%': { opacity: '0', transform: 'scale(1.8) rotate(-14deg)' },
+                    '60%': { opacity: '1', transform: 'scale(0.94) rotate(-3deg)' },
+                    '100%': { opacity: '1', transform: 'scale(1) rotate(-4.5deg)' },
                 },
-                shimmer: {
-                    '0%': { backgroundPosition: '-200% 0' },
-                    '100%': { backgroundPosition: '200% 0' },
-                }
+                riseIn: {
+                    '0%': { opacity: '0', transform: 'translateY(6px)' },
+                    '100%': { opacity: '1', transform: 'translateY(0)' },
+                },
+                blink: {
+                    '0%, 45%': { opacity: '1' },
+                    '50%, 95%': { opacity: '0.15' },
+                },
             },
-            backgroundImage: {
-                'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',
-                'hero-pattern': 'url("data:image/svg+xml,%3Csvg width="60" height="60" viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg"%3E%3Cg fill="none" fill-rule="evenodd"%3E%3Cg fill="%239C92AC" fill-opacity="0.05"%3E%3Cpath d="M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z"/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")',
+            animation: {
+                stamp: 'stampIn 340ms cubic-bezier(0.2, 1.4, 0.4, 1) both',
+                rise: 'riseIn 260ms ease-out both',
+                blink: 'blink 1.4s steps(1, end) infinite',
             },
         },
     },

@@ -172,25 +172,46 @@ def hotel_search(city: str, check_in: str = None, check_out: str = None, guests:
 
 
 def restaurant_finder(city: str, cuisine: str = None, budget: str = "medium") -> str:
-    """Find restaurants using Foursquare (with fallback to mock data)"""
-    from .real_api import search_restaurants_foursquare, get_mock_restaurants
-    
+    """Find restaurants via OpenStreetMap, falling back to mock data.
+
+    Foursquare is no longer consulted: its v3 API was retired on 2026-05-15 and
+    now returns 410, so calling it only cost a timeout before the fallback.
+    """
+    from .places_api import search_restaurants_osm
+    from .real_api import get_mock_restaurants
+
     cache_key = f"restaurants:{_norm_key_part(city)}:{_norm_key_part(cuisine)}:{_norm_key_part(budget)}"
-    
-    # Check cache first
+
     cached = _get_cached(cache_key)
     if cached:
         return json.dumps(cached)
-    
-    # Try real API first
-    result = search_restaurants_foursquare(city, cuisine, budget)
-    
-    # Fallback to mock data if API fails
+
+    result = search_restaurants_osm(city, cuisine, budget)
+
     if not result:
-        result = get_mock_restaurants(city, cuisine, budget)
-    
-    # Cache the result
-    _set_cache(cache_key, result, ttl=3600)
+        result = get_mock_restaurants(city, cuisine, budget, reason="No OSM match")
+
+    # Real hits are cached for a day (OSM barely changes and public Overpass is
+    # slow when busy); estimates expire quickly so the next try can do better.
+    ttl = 86400 if "Real Data" in result.get("source", "") else 600
+    _set_cache(cache_key, result, ttl=ttl)
+    return json.dumps(result, ensure_ascii=False)
+
+
+def attraction_finder(city: str) -> str:
+    """Find real sights to build the day plan around."""
+    from .places_api import search_attractions_osm, get_mock_attractions
+
+    cache_key = f"attractions:{_norm_key_part(city)}"
+
+    cached = _get_cached(cache_key)
+    if cached:
+        return json.dumps(cached)
+
+    result = search_attractions_osm(city) or get_mock_attractions(city, reason="No OSM match")
+
+    ttl = 604800 if "Real Data" in result.get("source", "") else 600
+    _set_cache(cache_key, result, ttl=ttl)
     return json.dumps(result, ensure_ascii=False)
 
 

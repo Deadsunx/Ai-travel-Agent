@@ -1,18 +1,38 @@
 import type { Metadata } from 'next'
-import { Inter } from 'next/font/google'
+import { Archivo, Instrument_Sans, Azeret_Mono } from 'next/font/google'
 import './globals.css'
 import { ThemeProvider } from '@/components/ui/ThemeProvider'
 
-const inter = Inter({ subsets: ['latin'] })
+// Display: wide grotesque, set like destination-board signage.
+const archivo = Archivo({
+    subsets: ['latin'],
+    axes: ['wdth'],
+    variable: '--font-display',
+    display: 'swap',
+})
+
+// Body: humanist sans, warmer and less ubiquitous than Inter.
+const instrument = Instrument_Sans({
+    subsets: ['latin'],
+    variable: '--font-body',
+    display: 'swap',
+})
+
+// Data: every fare, time, count and code is set in this.
+const azeret = Azeret_Mono({
+    subsets: ['latin'],
+    variable: '--font-mono',
+    display: 'swap',
+})
 
 export const metadata: Metadata = {
-    title: 'AI Travel Agent - Smart Trip Planning',
-    description: 'Plan your perfect trip with AI-powered recommendations. Get real-time prices for flights, hotels, and restaurants.',
-    keywords: ['travel', 'AI', 'trip planning', 'flights', 'hotels', 'itinerary'],
-    authors: [{ name: 'AI Travel Agent' }],
+    title: 'Travel Desk — trips planned from one sentence',
+    description:
+        'Describe a trip in a sentence. The desk searches flights, stays and places to eat, prices the whole thing, and marks every number live or estimated.',
+    keywords: ['travel', 'trip planning', 'flights', 'hotels', 'itinerary', 'India'],
     openGraph: {
-        title: 'AI Travel Agent',
-        description: 'Plan your perfect trip with AI-powered recommendations',
+        title: 'Travel Desk',
+        description: 'Trips planned from one sentence, with every number marked live or estimated.',
         type: 'website',
     },
 }
@@ -24,14 +44,9 @@ export default function RootLayout({
 }) {
     return (
         <html lang="en" suppressHydrationWarning>
-            <body className={`${inter.className} antialiased`}>
-                <ThemeProvider>
-                    <div className="min-h-screen">
-                        {children}
-                    </div>
-                </ThemeProvider>
+            <body className={`${archivo.variable} ${instrument.variable} ${azeret.variable} antialiased`}>
+                <ThemeProvider>{children}</ThemeProvider>
             </body>
         </html>
     )
 }
-
