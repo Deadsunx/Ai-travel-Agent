@@ -38,8 +38,11 @@ from app.services.redis_service import redis_service
 
 logger = logging.getLogger(__name__)
 
-# Gemini models use a different provider
-GEMINI_MODELS = ["gemini-2.0-flash", "gemini-1.5-pro", "gemini-1.5-flash"]
+# Gemini models use a different provider. Matched by prefix rather than an
+# explicit list: Google retires version-pinned names (gemini-2.0-flash and
+# gemini-2.5-flash are already closed to new keys) and the "-latest" aliases
+# are what stay usable, so a hardcoded list silently routes them to Ollama.
+GEMINI_PREFIX = "gemini"
 
 HISTORY_TURNS_IN_PROMPT = 6
 
@@ -68,7 +71,7 @@ def get_gemini_llm(model_name: str = "gemini-2.0-flash"):
 
 def get_llm(model_name: str = settings.model_name):
     """Router: Gemini models use the Google API, others use local Ollama."""
-    if any(model_name.startswith(g) for g in GEMINI_MODELS):
+    if model_name.startswith(GEMINI_PREFIX):
         return get_gemini_llm(model_name)
     return get_local_llm(model_name)
 

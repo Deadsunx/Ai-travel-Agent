@@ -13,7 +13,8 @@ const MODELS = [
     { value: 'qwen3:8b', label: 'Qwen3 8B' },
     { value: 'qwen3.5:latest', label: 'Qwen3.5 9B' },
     { value: 'gemma2:9b', label: 'Gemma2 9B' },
-    { value: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash' },
+    { value: 'gemini-flash-latest', label: 'Gemini Flash (cloud)' },
+    { value: 'gemini-flash-lite-latest', label: 'Gemini Flash Lite (cloud)' },
 ]
 
 export default function Home() {
