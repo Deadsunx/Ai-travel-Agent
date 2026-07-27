@@ -36,10 +36,15 @@ class Settings(BaseSettings):
     # Agent Settings
     agent_timeout: int = 120  # seconds, per LLM call (extraction step)
 
-    # Planner selection: "pipeline" is the v1 deterministic pipeline,
-    # "graph" is the v2 multi-agent LangGraph orchestrator. Per-request
-    # override: ChatRequest.planner.
-    planner: str = "pipeline"
+    # Planner selection: "graph" is the multi-agent LangGraph orchestrator,
+    # "pipeline" the older single-pass one. Per-request override:
+    # ChatRequest.planner.
+    #
+    # The graph is the default because it wins the golden-query comparison
+    # 15/16 to 13/16 — it fixes both duplicate-restaurant cases and holds a
+    # plan to its budget. It costs roughly 17% more latency; PLANNER=pipeline
+    # buys that back.
+    planner: str = "graph"
     # Revision rounds the critic may request before the plan is delivered
     # as-is. Local 8B models are slow, so 1 is the default; 2 is reasonable
     # on Gemini. Hard-capped by MAX_REVISIONS_CEILING in the critic.

@@ -445,7 +445,7 @@ def create_planner(
     which one they got. An unknown name falls back to the pipeline rather
     than failing a user request.
     """
-    name = (planner or settings.planner or "pipeline").strip().lower()
+    name = (planner or settings.planner or "graph").strip().lower()
 
     if name == "graph":
         # Imported lazily: the graph package imports this module.

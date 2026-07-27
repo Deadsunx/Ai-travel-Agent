@@ -23,8 +23,8 @@ harness cannot tell them apart.
 
 | Planner | What it does | When to use it |
 |---|---|---|
-| `pipeline` (default) | Extract parameters → fetch every source in parallel → cost the trip → write the answer. One pass, fully deterministic. | Fastest path; the baseline everything else is measured against. |
-| `graph` | The same work as a LangGraph state machine: a supervisor sets budget-derived constraints, three specialist desks choose and explain their picks, and a critic can send the plan back for a bounded revision round. | When the plan should be held to the budget and the reasoning should be visible. |
+| `graph` (default) | The work as a LangGraph state machine: a supervisor sets budget-derived constraints, three specialist desks choose and explain their picks, and a critic can send the plan back for a bounded revision round. | The default since it won the comparison 15/16 to 13/16 — when the plan should be held to its budget and the reasoning should be visible. |
+| `pipeline` | Extract parameters → fetch every source in parallel → cost the trip → write the answer. One pass, fully deterministic. | About 17% faster, and the baseline the graph is measured against. |
 
 §13 has the measured difference between them.
 
@@ -208,10 +208,12 @@ ai-travel-agent/
 
 ### 5.1 — The pipeline planner (`agents/travel_agent.py`)
 
-The default planner is a **deterministic pipeline**, not an agent loop. A
-forced ReAct loop was tried first and removed: smaller local models skipped
-tools, looped, and produced unbounded latency. The pipeline runs the same
-work in a fixed order, so tool coverage is 100% and latency is bounded.
+The pipeline is a **deterministic single pass**, not an agent loop. A forced
+ReAct loop was tried first and removed: smaller local models skipped tools,
+looped, and produced unbounded latency. The pipeline runs the same work in a
+fixed order, so tool coverage is 100% and latency is bounded. It is no longer
+the default (§13), but it remains the baseline the graph is measured against,
+and the faster option when a plan does not need to be held to a budget.
 
 1. **Extract** — one structured-output call turns the message into trip
    parameters (`prompts.get_extraction_prompt` → `params.resolve_trip_params`).

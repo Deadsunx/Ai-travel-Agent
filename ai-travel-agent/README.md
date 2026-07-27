@@ -5,7 +5,7 @@ An AI-powered travel planning agent that creates comprehensive, budget-conscious
 ## ✨ Features
 
 - **AI-Powered Chat**: Conversational interface over local or cloud models
-- **Two planners**: a deterministic pipeline, or a multi-agent graph with a plan critic
+- **Two planners**: a multi-agent graph with a plan critic (default), or the faster single-pass pipeline
 - **Real-Time Prices**: Live flight and hotel data from SerpAPI, RapidAPI
 - **Restaurant Recommendations**: Local dining spots via OpenStreetMap
 - **Budget Management**: Smart budget calculator with recommendations

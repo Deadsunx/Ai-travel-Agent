@@ -20,14 +20,14 @@ const MODELS = [
 // Which planner runs the request: the deterministic pipeline, or the
 // multi-agent graph whose desks and critic show up in the transcript.
 const PLANNERS = [
-    { value: 'pipeline', label: 'Pipeline' },
     { value: 'graph', label: 'Multi-agent' },
+    { value: 'pipeline', label: 'Pipeline' },
 ]
 
 export default function Home() {
     const [mode, setMode] = useState<'chat' | 'manual'>('chat')
     const [selectedModel, setSelectedModel] = useState<string>('qwen3.5:4b')
-    const [selectedPlanner, setSelectedPlanner] = useState<string>('pipeline')
+    const [selectedPlanner, setSelectedPlanner] = useState<string>('graph')
     const [itinerary, setItinerary] = useState<any>(null)
     const [sources, setSources] = useState<SourceMap>(IDLE_SOURCES)
     const { theme, toggleTheme } = useTheme()

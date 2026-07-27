@@ -38,8 +38,12 @@ The system uses a **Hybrid Integration** model to ensure reliability while provi
 
 | Planner | Selected by | What it does |
 |---------|-------------|--------------|
-| `pipeline` (default) | `PLANNER=pipeline` | Extract parameters → fetch all sources in parallel → cost the trip → write the answer. Fast and fully deterministic. |
-| `graph` | `PLANNER=graph`, or the **Multi-agent** switch in the header | Same work as a LangGraph state machine: a supervisor sets budget-derived constraints, three specialist desks run in parallel, and a critic can send the plan back for a bounded revision round. |
+| `graph` (default) | `PLANNER=graph`, or the **Multi-agent** switch in the header | The work runs as a LangGraph state machine: a supervisor sets budget-derived constraints, three specialist desks run in parallel and explain their picks, and a critic can send the plan back for a bounded revision round. |
+| `pipeline` | `PLANNER=pipeline` | Extract parameters → fetch all sources in parallel → cost the trip → write the answer. One pass, no selection, no critic — about 17% faster. |
+
+The graph is the default because it wins the golden-query comparison **15/16
+to 13/16**: it fixes both duplicate-restaurant failures and holds a plan to
+its budget. `PLANNER=pipeline` buys the latency back.
 
 Either planner can be picked per request (`"planner"` in the chat payload), so the
 two can be compared on the same query:
