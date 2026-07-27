@@ -176,7 +176,12 @@ async def attraction_agent(state: PlanState, config: Dict[str, Any]) -> Dict[str
         city=str(params["destination"]),
     )
 
-    clusters = cluster_by_area(_items(data, "attractions"), params["days"])
+    clusters = cluster_by_area(
+        _items(data, "attractions"), params["days"],
+        # Set by the rebalance_days revision action: spread the sights so
+        # every day gets one, at some cost to how tightly each day clusters.
+        even=bool((state.get("constraints") or {}).get("rebalance_days")),
+    )
     await _report(config, "attractions", data)
     return {"attractions": data, "sight_clusters": clusters}
 

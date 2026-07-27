@@ -273,7 +273,10 @@ without re-running the search.
 vocabulary (`actions.py`): `cheaper_hotels`, `drop_paid_activities`,
 `swap_flight`, `shorten_stay`, `rebalance_days`, `widen_hotel_search`. Each is
 a pure function returning a constraint delta, so the loop is testable without
-a model. Revisions are capped (`MAX_REVISIONS`, hard ceiling 3); on exhaustion
+a model. Each is also tested for *effect* — an action that changes a
+constraint no node reads would look convincing in the trace while doing
+nothing, which is exactly what happened to two of them before this was
+checked. Revisions are capped (`MAX_REVISIONS`, hard ceiling 3); on exhaustion
 the plan is delivered with the problem stated plainly rather than hidden.
 Because tool results are Redis-cached, a tighter cap re-filters the same
 result set instead of re-hitting the APIs.

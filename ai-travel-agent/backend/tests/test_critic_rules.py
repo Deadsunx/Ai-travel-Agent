@@ -88,16 +88,34 @@ def test_no_budget_limit_means_no_budget_rule():
 # ---- coverage and coherence -------------------------------------------
 
 
-def test_a_thin_day_is_reported_with_the_day_number():
-    state = _state(itinerary={"days": [
-        {"day": 1, "morning": [{}, {}], "afternoon": [{}], "evening": [{}]},
-        {"day": 2, "morning": [{}], "afternoon": [], "evening": []},
-    ]})
+def test_a_day_with_no_real_sight_is_reported_with_its_number():
+    """Six sights chunked over four days leave the fourth on placeholders."""
+    state = _state(sight_clusters=[
+        [{"name": "A"}, {"name": "B"}],
+        [{"name": "C"}, {"name": "D"}],
+        [{"name": "E"}, {"name": "F"}],
+        [],
+    ])
     issues, requests = check_day_coverage(state)
 
     assert issues[0]["severity"] == "warning"
-    assert "Day 2" in issues[0]["message"]
+    assert "Day 4" in issues[0]["message"]
     assert requests[0]["name"] == "rebalance_days"
+
+
+def test_an_even_spread_raises_nothing():
+    state = _state(sight_clusters=[[{"name": "A"}], [{"name": "B"}], [{"name": "C"}]])
+    assert check_day_coverage(state) == ([], [])
+
+
+def test_too_few_sights_to_go_round_is_a_data_note():
+    """No redistribution can cover four days with two sights."""
+    state = _state(sight_clusters=[[{"name": "A"}], [{"name": "B"}], [], []])
+    issues, requests = check_day_coverage(state)
+
+    assert issues[0]["severity"] == "note"
+    assert issues[0]["category"] == "data_quality"
+    assert requests == []
 
 
 def test_repeats_with_enough_restaurants_are_a_fixable_warning():

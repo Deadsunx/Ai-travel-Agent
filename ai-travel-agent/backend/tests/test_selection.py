@@ -96,6 +96,22 @@ def test_places_without_coordinates_fall_back_to_round_robin():
     assert [p["name"] for p in buckets[1]] == ["Sight 1", "Sight 3"]
 
 
+def test_chunking_can_leave_a_late_day_empty():
+    """The coherence/coverage trade rebalance_days exists to make."""
+    places = [{"name": f"S{i}", "lat": 15 + i * 0.05, "lon": 73.5} for i in range(6)]
+    buckets = cluster_by_area(places, days=4)
+
+    assert buckets[3] == [], "contiguous chunking fills the early days first"
+
+
+def test_even_spreads_a_sight_onto_every_day():
+    places = [{"name": f"S{i}", "lat": 15 + i * 0.05, "lon": 73.5} for i in range(6)]
+    buckets = cluster_by_area(places, days=4, even=True)
+
+    assert all(bucket for bucket in buckets), "every day gets a real sight"
+    assert sum(len(b) for b in buckets) == 6
+
+
 def test_every_place_lands_on_exactly_one_day():
     places = [{"name": f"S{i}", "lat": 15 + i * 0.1, "lon": 73.5} for i in range(9)]
     buckets = cluster_by_area(places, days=4)

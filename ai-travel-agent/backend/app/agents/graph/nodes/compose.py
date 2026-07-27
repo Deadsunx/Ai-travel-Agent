@@ -59,6 +59,9 @@ async def budget_node(state: PlanState, config: Dict[str, Any]) -> Dict[str, Any
         budget_limit=params["budget_limit"],
         flight_cost=flight_cost,
         hotel_cost_per_night=hotel_cost,
+        # None keeps the default of two a day; a revision that cut
+        # activities passes the reduced count and the total falls with it.
+        paid_activities=(state.get("constraints") or {}).get("max_paid_activities"),
     ))
     return {"budget": budget}
 

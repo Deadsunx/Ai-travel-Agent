@@ -17,9 +17,6 @@ from app.agents.data import is_mock
 from app.agents.graph.actions import request
 from app.agents.graph.state import SECTIONS, Issue, PlanState
 
-#: A day with fewer scheduled activities than this reads as a gap.
-MIN_ACTIVITIES_PER_DAY = 3
-
 #: Over budget by more than this is treated as needing more than a cheaper
 #: room — activities come out too.
 SEVERE_OVERRUN = 1.3
@@ -74,13 +71,6 @@ def _meal_names(state: PlanState) -> List[str]:
     return names
 
 
-def _activity_counts(itinerary: Optional[Dict[str, Any]]) -> List[int]:
-    return [
-        sum(len(day.get(slot) or []) for slot in SLOTS)
-        for day in (itinerary or {}).get("days") or []
-    ]
-
-
 # ----------------------------------------------------------------------
 # Rules
 # ----------------------------------------------------------------------
@@ -123,16 +113,34 @@ def check_budget(state: PlanState) -> Tuple[List[Issue], List[Dict[str, Any]]]:
 
 
 def check_day_coverage(state: PlanState) -> Tuple[List[Issue], List[Dict[str, Any]]]:
-    """No day should be near-empty while others are full."""
-    counts = _activity_counts(state.get("itinerary"))
-    thin = [index + 1 for index, count in enumerate(counts) if count < MIN_ACTIVITIES_PER_DAY]
-    if not thin:
+    """No day should be filled with placeholders while others have real places.
+
+    Counting rows in the day plan cannot detect this: the itinerary template
+    always emits the same number of slots and pads the ones it has no real
+    place for. What matters is how the *found* sights were distributed, so
+    that is what this reads.
+    """
+    clusters = state.get("sight_clusters")
+    if not clusters:
         return [], []
+
+    empty = [index + 1 for index, day in enumerate(clusters) if not day]
+    if not empty:
+        return [], []
+
+    found = sum(len(day) for day in clusters)
+    listed = ", ".join(str(d) for d in empty)
+
+    if found < len(clusters):
+        # Fewer sights than days: no redistribution can cover them all.
+        return [_issue("note", "data_quality",
+                       f"Only {found} sights found for {len(clusters)} days, so "
+                       f"day {listed} falls back to generic suggestions")], []
 
     return (
         [_issue("warning", "coverage",
-                f"Day {', '.join(str(d) for d in thin)} has fewer than "
-                f"{MIN_ACTIVITIES_PER_DAY} activities", "rebalance_days")],
+                f"Day {listed} has no real sight while other days have several",
+                "rebalance_days")],
         [request("rebalance_days")],
     )
 

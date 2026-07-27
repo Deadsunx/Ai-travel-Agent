@@ -116,3 +116,25 @@ def test_itinerary_fallback_without_data():
     result = json.loads(itinerary_builder(destination="Goa", days=1))
     text = json.dumps(result)
     assert "famous landmark #" not in text  # old placeholder style is gone
+
+
+def test_activity_cost_defaults_to_two_a_day():
+    """The per-activity rate must reproduce the original per-day figure."""
+    import json
+    from app.tools import budget_calculator
+
+    budget = json.loads(budget_calculator(destination="Goa", days=3, travelers=1))
+    assert budget["breakdown"]["activities"] == 3600      # 1200 x 3 days
+
+
+def test_cutting_activities_lowers_the_total():
+    """drop_paid_activities must move the number it claims to move."""
+    import json
+    from app.tools import budget_calculator
+
+    full = json.loads(budget_calculator(destination="Goa", days=3, travelers=1))
+    cut = json.loads(budget_calculator(destination="Goa", days=3, travelers=1,
+                                       paid_activities=2))
+
+    assert cut["breakdown"]["activities"] == 1200         # 2 x 600
+    assert cut["total_with_buffer"] < full["total_with_buffer"]

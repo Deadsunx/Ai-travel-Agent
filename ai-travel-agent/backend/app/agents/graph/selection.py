@@ -209,16 +209,23 @@ def _coords(place: Dict[str, Any]) -> Optional[Tuple[float, float]]:
         return None
 
 
-def cluster_by_area(places: List[Dict[str, Any]], days: int) -> List[List[Dict[str, Any]]]:
-    """Group places into `days` geographically coherent buckets.
+def cluster_by_area(places: List[Dict[str, Any]], days: int,
+                    even: bool = False) -> List[List[Dict[str, Any]]]:
+    """Group places into `days` buckets.
 
     Sorting along whichever axis the places actually spread over, then
     chunking, is not k-means — but for the eight to ten POIs a city search
     returns it produces the same "don't cross town twice before lunch"
     result, deterministically and without a dependency.
 
+    Chunking optimises coherence at the cost of coverage: with six sights
+    over four days it fills the first three and leaves the fourth empty.
+    `even=True` deals round-robin instead, trading some of that coherence
+    for a real place on every day — the trade the `rebalance_days` revision
+    action exists to make.
+
     Places without coordinates keep their original order and are dealt out
-    round-robin, which is exactly the v1 behaviour.
+    round-robin regardless, which is exactly the v1 behaviour.
     """
     days = max(int(days or 1), 1)
     located = [p for p in places or [] if _coords(p)]
@@ -234,10 +241,16 @@ def cluster_by_area(places: List[Dict[str, Any]], days: int) -> List[List[Dict[s
         axis = 0 if spread_lat >= spread_lon else 1
         ordered = sorted(located, key=lambda p: _coords(p)[axis])
 
-        # Deal contiguous runs so neighbouring places land on the same day.
-        per_day = max(1, round(len(ordered) / days))
-        for index, place in enumerate(ordered):
-            buckets[min(index // per_day, days - 1)].append(place)
+        if even:
+            # Still ordered by area, but every day is served before any day
+            # gets a second stop.
+            for index, place in enumerate(ordered):
+                buckets[index % days].append(place)
+        else:
+            # Deal contiguous runs so neighbouring places land on the same day.
+            per_day = max(1, round(len(ordered) / days))
+            for index, place in enumerate(ordered):
+                buckets[min(index // per_day, days - 1)].append(place)
 
     for index, place in enumerate(unlocated):
         buckets[index % days].append(place)

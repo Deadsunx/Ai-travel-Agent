@@ -10,6 +10,10 @@ import requests
 from app.services.redis_service import redis_service
 from app.config import settings
 
+#: Paid activities the itinerary schedules per day (a morning and an
+#: afternoon stop). Shared by the budget and the day plan so the two agree.
+ACTIVITIES_PER_DAY = 2
+
 
 def _extract_json_payload(input_str: str) -> Optional[dict]:
     """Best-effort parse of model-produced tool input."""
@@ -229,8 +233,16 @@ def budget_calculator(
     budget_limit: float = 0,
     flight_cost: float = 0,
     hotel_cost_per_night: float = 0,
+    paid_activities: Optional[int] = None,
 ) -> str:
-    """Calculate estimated trip budget using real prices when available."""
+    """Calculate estimated trip budget using real prices when available.
+
+    `paid_activities` is how many paid activities the trip schedules; it
+    defaults to two a day, which is what the itinerary builder lays out. A
+    caller that has cut activities to fit a budget passes the reduced count
+    and sees the total fall — without it, "drop some activities" would be
+    advice the arithmetic ignores.
+    """
 
     # Budget multipliers for estimated categories
     multipliers = {
@@ -258,8 +270,13 @@ def budget_calculator(
     transport_total = transport_daily * days
 
     # --- Activities (estimated) ---
-    activities_daily = int(1200 * mult)
-    activities_total = activities_daily * days
+    # Priced per activity rather than per day, so a reduced count actually
+    # costs less. Two a day at this rate reproduces the old per-day figure.
+    activity_unit_cost = int(600 * mult)
+    if paid_activities is None:
+        paid_activities = days * ACTIVITIES_PER_DAY
+    paid_activities = max(_coerce_int(paid_activities, days * ACTIVITIES_PER_DAY), 0)
+    activities_total = activity_unit_cost * paid_activities
 
     # --- Miscellaneous (estimated) ---
     misc_daily = int(500 * mult)
