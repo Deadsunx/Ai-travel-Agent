@@ -20,6 +20,7 @@ from functools import lru_cache
 from typing import Any, AsyncIterator, Dict
 import asyncio
 import logging
+import time
 
 from langgraph.graph import END, START, StateGraph
 
@@ -32,6 +33,7 @@ from app.agents.graph.nodes.supervisor import supervisor
 from app.agents.graph.nodes.synthesis import synthesis
 from app.agents.graph.runtime import Runtime, config_for
 from app.agents.graph.state import PlanState, empty_collected, initial_state
+from app.agents.telemetry import record_run
 from app.agents.travel_agent import TravelPlanningAgent
 
 logger = logging.getLogger(__name__)
@@ -99,6 +101,7 @@ class GraphPlanner:
         state is only visible between supersteps — waiting for that would
         turn streaming into batching.
         """
+        started = time.perf_counter()
         events: asyncio.Queue = asyncio.Queue()
         runtime = Runtime(
             agent=self.agent,
@@ -157,6 +160,8 @@ class GraphPlanner:
         collected = state.get("collected_data") or empty_collected()
         if state.get("intent") == "plan_trip":
             self.agent.store_plan(collected)
+            await record_run("graph", self.session_id, self.model_name, collected,
+                             started, verdict=state.get("verdict"))
         self.agent.save_conversation(user_query, final_text)
 
         yield {

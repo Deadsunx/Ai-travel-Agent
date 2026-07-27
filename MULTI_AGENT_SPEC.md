@@ -1,6 +1,8 @@
 # Multi-Agent Travel Orchestrator — v2 Specification
 
-**Status:** M0, M1, M2 landed; eval harness and the timeline UI pulled forward. M3 next.
+**Status:** M0–M5 landed and verified end to end. Open follow-up: the golden
+set still lacks a case with a *closable* budget gap, so the revision loop is
+proven by construction and by trace rather than by the eval (see §9).
 **Branch:** `feat/multi-agent-orchestrator`
 **Baseline:** the deterministic pipeline in `backend/app/agents/travel_agent.py` (v1)
 
@@ -396,7 +398,7 @@ backend/evals/golden_queries.json     # new assertions + adversarial cases
 backend/evals/run_evals.py            # --planner, --compare
 frontend/lib/types.ts
 frontend/components/chat/ChatInterface.tsx
-README.md, PROJECT_WALKTHROUGH.md     # fix stale "ReAct + GPT-4" claims
+README.md, PROJECT_WALKTHROUGH.md     ✅ rewritten around the two planners
 ```
 
 ---
@@ -408,9 +410,9 @@ README.md, PROJECT_WALKTHROUGH.md     # fix stale "ReAct + GPT-4" claims
 | **M0** ✅ | Scaffolding + planner flag | `PLANNER=graph` routes to a stub that returns v1's answer; `PLANNER=pipeline` is default and untouched | 0.5 d |
 | **M1** ✅ | Graph parity | LangGraph reproduces v1 end-to-end; `test_graph_parity.py` shows identical `collected` keys; eval pass rate ≥ pipeline | 2 d |
 | **M2** ✅ | Specialists with judgment | flight/hotel/local emit `Choice` + rationale; budget uses chosen prices; clustering removes duplicates | 2 d |
-| **M3** | Critic + revision loop | rule critic + LLM critic; ≥1 golden case demonstrably goes blocker → revise → pass; `max_revisions` respected | 2 d |
-| **M4** | Timeline UI + `plan_runs` | live agent lanes, critic badge, revision thread; every run persisted | 1.5 d |
-| **M5** | Eval comparison + docs | `--compare` table produced; READMEs corrected; walkthrough updated with the v1→v2 story | 1 d |
+| **M3** ✅ | Critic + revision loop | rule critic + LLM critic; ≥1 golden case demonstrably goes blocker → revise → pass; `max_revisions` respected | 2 d |
+| **M4** ✅ | Timeline UI + `plan_runs` | live agent lanes, critic badge, revision thread; every run persisted | 1.5 d |
+| **M5** ✅ | Eval comparison + docs | `--compare` table produced; READMEs corrected; walkthrough updated with the v1→v2 story | 1 d |
 
 The harness half of M5 was pulled forward and is already on the branch
 (`--planner`, `--compare`, and the plan-quality assertions), so every later

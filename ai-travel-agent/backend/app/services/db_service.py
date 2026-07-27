@@ -5,7 +5,7 @@ from datetime import datetime
 import json
 
 from app.config import settings
-from app.models.database import Base, User, ChatSession, Itinerary, SearchCache
+from app.models.database import Base, User, ChatSession, Itinerary, PlanRun, SearchCache
 
 # Create database engine
 engine = create_engine(
@@ -204,3 +204,46 @@ def get_user_itineraries(user_id: int) -> List[dict]:
     except Exception as e:
         print(f"Error getting user itineraries: {e}")
         return []
+
+
+def save_plan_run(
+    run_id: str,
+    session_id: str,
+    planner: str,
+    model_name: str,
+    collected: Optional[dict],
+    latency_ms: int,
+    succeeded: bool = True,
+    verdict: Optional[str] = None,
+) -> bool:
+    """Record one planning run for later comparison between planners.
+
+    Never raises: telemetry must not be able to fail a user's request.
+    """
+    collected = collected or {}
+    budget = collected.get("budget") or {}
+
+    try:
+        db = SessionLocal()
+        db.add(PlanRun(
+            run_id=run_id,
+            session_id=session_id,
+            planner=planner,
+            model_name=model_name,
+            params=collected.get("trip_params") or {},
+            choices=collected.get("choices") or [],
+            issues=collected.get("issues") or [],
+            revisions=collected.get("revisions") or 0,
+            verdict=verdict,
+            budget_total=budget.get("total_with_buffer"),
+            budget_limit=budget.get("budget_limit"),
+            within_budget=budget.get("within_budget"),
+            latency_ms=latency_ms,
+            succeeded=succeeded,
+        ))
+        db.commit()
+        db.close()
+        return True
+    except Exception as e:
+        print(f"Error saving plan run: {e}")
+        return False

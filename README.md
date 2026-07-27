@@ -28,7 +28,7 @@ The system uses a **Hybrid Integration** model to ensure reliability while provi
 |------|--------|---------|--------|
 | **Flight Search** | SerpAPI (Google Flights) | Real-time flight pricing and links | ✅ Integrated with Mock Fallback |
 | **Hotel Search** | RapidAPI (Booking.com) | Real-time accommodation search | ✅ Integrated with Mock Fallback |
-| **Places Search** | Foursquare API | Local attraction and dining info | ✅ Integrated with Mock Fallback |
+| **Places Search** | OpenStreetMap (Overpass) | Eateries and sights, with coordinates | ✅ Integrated with Mock Fallback |
 | **General Search**| Google Search | Information on activities and tips | ✅ Integrated |
 
 > [!NOTE]
@@ -77,7 +77,8 @@ AI Travel Agent PBL ANTGVT/
 ### Prerequisites
 
 - Docker & Docker Compose
-- API Keys for OpenAI, SerpAPI, RapidAPI, and Foursquare
+- Ollama running on the host (or a Google Gemini key), plus SerpAPI and RapidAPI keys.
+  OpenStreetMap needs no key; every source has a mock fallback, so the app runs without any of them.
 
 ### Quick Run
 

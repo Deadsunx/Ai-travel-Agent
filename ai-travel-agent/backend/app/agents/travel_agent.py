@@ -19,12 +19,14 @@ import json
 import logging
 import queue
 import threading
+import time
 
 from app.config import settings
 from app.agents import ollama_native
 from app.agents.data import cheapest, is_mock, safe_load, section_count
 from app.agents.streaming import ThinkFilter, strip_think
 from app.agents.params import resolve_trip_params
+from app.agents.telemetry import record_run
 from app.tools import (
     flight_search,
     hotel_search,
@@ -321,6 +323,7 @@ class TravelPlanningAgent:
         Yields {"type": "status"|"token"|"result"|"error", ...} dicts; the
         "result" payload matches the old plan_trip() return shape.
         """
+        started = time.perf_counter()
         try:
             yield {"type": "status", "message": "🔍 Understanding your travel request..."}
             params = await self.extract_params(user_query)
@@ -364,6 +367,8 @@ class TravelPlanningAgent:
 
             if params["intent"] == "plan_trip" and params.get("destination"):
                 self.store_plan(collected)
+                await record_run("pipeline", self.session_id, self.model_name,
+                                 collected, started)
             self.save_conversation(user_query, final_text)
 
             yield {

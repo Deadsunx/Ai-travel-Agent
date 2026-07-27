@@ -7,7 +7,7 @@ An AI-powered travel planning agent that creates comprehensive, budget-conscious
 - **AI-Powered Chat**: Conversational interface over local or cloud models
 - **Two planners**: a deterministic pipeline, or a multi-agent graph with a plan critic
 - **Real-Time Prices**: Live flight and hotel data from SerpAPI, RapidAPI
-- **Restaurant Recommendations**: Local dining spots via Foursquare
+- **Restaurant Recommendations**: Local dining spots via OpenStreetMap
 - **Budget Management**: Smart budget calculator with recommendations
 - **Day-by-Day Itinerary**: Complete trip planning with activities
 - **Streaming Responses**: Real-time progress updates during planning
@@ -35,7 +35,7 @@ An AI-powered travel planning agent that creates comprehensive, budget-conscious
 - **Google Gemini** - optional cloud model
 - **SerpAPI** - Google search results
 - **RapidAPI** - Skyscanner flights, Booking.com hotels
-- **Foursquare** - Restaurant recommendations
+- **OpenStreetMap (Overpass)** - Restaurants and sights; no API key needed
 
 ## 🚀 Quick Start
 
@@ -153,7 +153,7 @@ npm run dev
 1. **OpenAI**: <https://platform.openai.com/api-keys>
 2. **SerpAPI**: <https://serpapi.com/>
 3. **RapidAPI**: <https://rapidapi.com/> (subscribe to Skyscanner and Booking.com)
-4. **Foursquare**: <https://developer.foursquare.com/>
+4. **OpenStreetMap**: no key required (public Overpass and Nominatim endpoints)
 
 ## 🐛 Troubleshooting
 

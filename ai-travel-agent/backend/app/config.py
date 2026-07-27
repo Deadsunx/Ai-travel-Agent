@@ -50,6 +50,9 @@ class Settings(BaseSettings):
     # whole extra call per plan and the deterministic rules are what
     # actually drive revisions.
     critic_advisory_pass: bool = False
+    # Write a plan_runs row per planning run. Turned off in tests so a unit
+    # run leaves no trace in the comparison data.
+    record_plan_runs: bool = True
     
     class Config:
         env_file = ".env"

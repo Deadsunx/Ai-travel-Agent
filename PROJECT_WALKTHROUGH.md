@@ -1,6 +1,6 @@
 # 🌍 AI Travel Agent — Complete Project Walkthrough
 
-> **Version:** 1.1.0 | **Last Updated:** April 2026
+> **Version:** 2.0.0 | **Last Updated:** July 2026
 
 ---
 
@@ -10,10 +10,23 @@ The AI Travel Agent is a **full-stack AI-powered travel planning application** t
 
 ### Core Value Proposition
 
-- Natural language trip planning via an AI agent
-- Real-time flight, hotel, and restaurant pricing from live APIs
-- Budget-aware itinerary generation
+- Natural language trip planning
+- Real-time flight, hotel and place data, with an honest fallback when a source is unavailable
+- Budget-aware itinerary generation — and, on the multi-agent planner, a budget the plan is actually *held to*
 - Dual interaction modes: **AI Chat** and **Manual Planning Form**
+
+### Two planners
+
+The same work can be run two ways, chosen per request or by the `PLANNER`
+setting. Both expose the same interface, so the API routes and the eval
+harness cannot tell them apart.
+
+| Planner | What it does | When to use it |
+|---|---|---|
+| `pipeline` (default) | Extract parameters → fetch every source in parallel → cost the trip → write the answer. One pass, fully deterministic. | Fastest path; the baseline everything else is measured against. |
+| `graph` | The same work as a LangGraph state machine: a supervisor sets budget-derived constraints, three specialist desks choose and explain their picks, and a critic can send the plan back for a bounded revision round. | When the plan should be held to the budget and the reasoning should be visible. |
+
+§13 has the measured difference between them.
 
 ---
 
@@ -26,7 +39,7 @@ The AI Travel Agent is a **full-stack AI-powered travel planning application** t
 | **Python** | 3.11 | Core language |
 | **FastAPI** | 0.109.0 | REST API framework with async support |
 | **Uvicorn** | 0.27.0 | ASGI server |
-| **LangChain** | ≥0.3.0 | AI agent orchestration (ReAct pattern) |
+| **LangGraph** | ≥0.2.60 | Multi-agent orchestration (the `graph` planner) |
 | **LangChain OpenAI** | ≥0.3.0 | Ollama integration (OpenAI-compatible) |
 | **LangChain Google GenAI** | ≥2.0.0 | Gemini model integration |
 | **SQLAlchemy** | 2.0.25 | ORM for PostgreSQL |
@@ -64,8 +77,13 @@ The AI Travel Agent is a **full-stack AI-powered travel planning application** t
 |---|---|
 | **SerpAPI** | Flight search (Google Flights) & web search |
 | **RapidAPI** | Hotel search |
-| **Foursquare** | Restaurant search & recommendations |
-| **Google Gemini API** | Cloud LLM (Gemini 2.0 Flash) |
+| **OpenStreetMap (Overpass + Nominatim)** | Restaurants and sights, with coordinates |
+| **Google Gemini API** | Cloud LLM (`gemini-flash-latest` aliases) |
+
+> Foursquare is no longer consulted: its v3 API was retired on 2026-05-15 and
+> returned 410, so calling it only bought a timeout before the fallback.
+> Places now come from OpenStreetMap, which also supplies the coordinates the
+> multi-agent planner needs to group a day's stops by area.
 
 ---
 
@@ -89,11 +107,11 @@ The AI Travel Agent is a **full-stack AI-powered travel planning application** t
               ┌──────────────┼──────────────┐
               ▼              ▼              ▼
         ┌──────────┐  ┌──────────┐  ┌─────────────┐
-        │  Ollama   │  │ SerpAPI  │  │  Foursquare │
-        │ (Host)    │  │ RapidAPI │  │     API     │
-        │ Qwen/Gemma│  │ Flights  │  │ Restaurants │
-        └──────────┘  │  Hotels  │  └─────────────┘
-                      └──────────┘
+        │  Ollama   │  │ SerpAPI  │  │ OpenStreetMap│
+        │ (Host)    │  │ RapidAPI │  │  Overpass    │
+        │ Qwen/Gemma│  │ Flights  │  │ Eateries,    │
+        └──────────┘  │  Hotels  │  │ sights       │
+                      └──────────┘  └─────────────┘
 ```
 
 ---
@@ -112,25 +130,39 @@ ai-travel-agent/
 │       ├── main.py             # FastAPI app, CORS, routers, lifespan
 │       ├── config.py           # Pydantic settings (DB, Redis, LLM, APIs)
 │       ├── agents/
-│       │   ├── travel_agent.py # LangChain ReAct agent (Ollama + Gemini)
-│       │   ├── prompts.py      # System prompts & ReAct template
-│       │   └── callbacks.py    # Streaming callbacks
+│       │   ├── travel_agent.py # v1 pipeline + create_planner() factory
+│       │   ├── prompts.py      # extraction / synthesis / chat prompts
+│       │   ├── params.py       # trip-parameter defaults and clamping
+│       │   ├── data.py         # tool-payload helpers shared by both planners
+│       │   ├── streaming.py    # <think> block filtering
+│       │   ├── ollama_native.py# native Ollama endpoint (reasoning off)
+│       │   ├── telemetry.py    # records a plan_runs row per run
+│       │   └── graph/          # v2 multi-agent planner
+│       │       ├── build.py    # graph wiring + GraphPlanner driver
+│       │       ├── state.py    # PlanState, Choice, Issue, to_collected()
+│       │       ├── runtime.py  # event queue + shared agent, via LangGraph config
+│       │       ├── selection.py# how a specialist picks, and says why
+│       │       ├── rules.py    # the critic's deterministic rules
+│       │       ├── actions.py  # the closed revision vocabulary
+│       │       ├── prompts.py  # the advisory critic prompt
+│       │       └── nodes/      # intake, supervisor, specialists, compose,
+│       │                       # critic, synthesis
 │       ├── api/routes/
 │       │   ├── chat.py         # SSE streaming + sync chat endpoints
 │       │   ├── manual_plan.py  # Form-based itinerary generation
 │       │   ├── itinerary.py    # Save/retrieve itineraries
 │       │   └── health.py       # Health check (DB + Redis)
 │       ├── tools/
-│       │   ├── __init__.py     # 6 LangChain tools + wrappers
-│       │   ├── real_api.py     # SerpAPI, RapidAPI, Foursquare clients
-│       │   ├── flight_search.py
-│       │   ├── hotel_search.py
-│       │   ├── restaurant_finder.py
-│       │   ├── budget_calculator.py
-│       │   ├── itinerary_builder.py
-│       │   └── google_search.py
+│       │   ├── __init__.py     # the 7 tools + Redis-cached wrappers
+│       │   ├── real_api.py     # SerpAPI / RapidAPI clients + mock fallbacks
+│       │   ├── places_api.py   # OpenStreetMap restaurants and sights
+│       │   └── airports.py     # city → IATA resolution
+│       ├── evals/
+│       │   ├── golden_queries.json   # 16 cases with plan-quality assertions
+│       │   ├── run_evals.py          # --planner, --compare
+│       │   └── baseline_m1_qwen3-8b.json
 │       ├── models/
-│       │   ├── database.py     # SQLAlchemy models (User, ChatSession, Itinerary, SearchCache)
+│       │   ├── database.py     # SQLAlchemy models (User, ChatSession, Itinerary, PlanRun, SearchCache)
 │       │   └── schemas.py      # Pydantic request/response schemas
 │       ├── services/
 │       │   ├── db_service.py   # CRUD operations (users, sessions, itineraries)
@@ -147,9 +179,12 @@ ai-travel-agent/
     │   ├── page.tsx            # Main page (hero, mode toggle, content)
     │   └── globals.css         # Global styles & custom design tokens
     ├── components/
+    │   ├── agents/
+    │   │   └── AgentTimeline.tsx     # Desks, choices, critic verdict, rounds
     │   ├── chat/
     │   │   ├── ChatInterface.tsx     # AI chat with SSE streaming
     │   │   ├── MessageBubble.tsx     # Chat message display
+    │   │   ├── Prose.tsx             # Markdown rendering
     │   │   └── StreamingIndicator.tsx# Typing/loading animation
     │   ├── itinerary/
     │   │   ├── ItineraryDisplay.tsx  # Full itinerary renderer
@@ -159,7 +194,7 @@ ai-travel-agent/
     │   │   └── ManualPlanningForm.tsx# Form-based trip input
     │   └── ui/
     │       ├── ThemeProvider.tsx     # Dark/Light mode context
-    │       ├── BackgroundSlider.tsx  # Animated travel backgrounds
+    │       ├── SourceLedger.tsx      # Per-source live/estimated provenance
     │       └── SkeletonLoader.tsx    # Loading placeholders
     └── lib/
         ├── api-client.ts      # API functions (streaming, sync, save, health)
@@ -171,43 +206,100 @@ ai-travel-agent/
 
 ## 5. Backend Deep Dive
 
-### 5.1 — AI Agent (`agents/travel_agent.py`)
+### 5.1 — The pipeline planner (`agents/travel_agent.py`)
 
-The core intelligence uses **LangChain's ReAct (Reasoning + Acting) pattern**:
+The default planner is a **deterministic pipeline**, not an agent loop. A
+forced ReAct loop was tried first and removed: smaller local models skipped
+tools, looped, and produced unbounded latency. The pipeline runs the same
+work in a fixed order, so tool coverage is 100% and latency is bounded.
 
-- **Model Router:** Automatically selects between local Ollama models (Qwen3:8b, Gemma2:9b) and Google Gemini API based on the model name
-- **Memory:** `ConversationSummaryBufferMemory` — keeps recent messages verbatim and summarizes older ones (2000 token limit)
-- **Session Persistence:** Conversation history is loaded from / saved to Redis
-- **Tool Execution:** The agent reasons step-by-step, invoking tools as needed, then synthesizes a final answer
-- **Max Iterations:** 25 (with parsing error handling)
+1. **Extract** — one structured-output call turns the message into trip
+   parameters (`prompts.get_extraction_prompt` → `params.resolve_trip_params`).
+   Ollama's native endpoint is preferred here with reasoning switched off:
+   roughly 20× faster for identical output.
+2. **Collect** — flights, hotels, restaurants and sights are fetched **in
+   parallel**, each sync tool moved off the event loop with `asyncio.to_thread`.
+3. **Cost** — `budget_calculator` runs on the cheapest price found in each
+   section.
+4. **Write** — one streaming call composes the answer from the collected data.
 
-**Available Models:**
+Refinements and chit-chat skip steps 2–4 entirely and answer from the stored
+plan.
+
+**Model routing** — anything starting with `gemini` goes to the Google API,
+everything else to local Ollama. Matched by prefix rather than a fixed list,
+because Google retires version-pinned names while the `-latest` aliases stay
+usable, and a hardcoded list would silently route them to Ollama.
 
 | Model | Provider | Type |
 |---|---|---|
-| `qwen3:8b` | Ollama (local) | Default |
+| `qwen3.5:4b`, `qwen3:8b`, `qwen3.5:latest` | Ollama (local) | Default family |
 | `gemma2:9b` | Ollama (local) | Alternative |
-| `gemini-2.0-flash` | Google API (cloud) | Fast cloud model |
+| `gemini-flash-latest`, `gemini-flash-lite-latest` | Google API (cloud) | Fast cloud models |
 
-### 5.2 — LangChain Tools (6 Tools)
+### 5.2 — The multi-agent planner (`agents/graph/`)
+
+The `graph` planner runs the same steps as a LangGraph state machine, so that
+choices can be made, explained, and reconsidered.
+
+```
+intake ─┬─(chat)───────────────────────────────────▶ synthesis ─▶ END
+        └─(plan)─▶ supervisor ─┬─▶ flight_agent ─────┐
+                      ▲        ├─▶ hotel_agent ──────┤   compose_budget
+                      │        ├─▶ restaurant_agent ─┼─▶       ▼
+                      │        └─▶ attraction_agent ─┘   compose_itinerary
+                      │                                         │
+                      └────────(revise)───────── critic ◀───────┘
+```
+
+| Node | Responsibility |
+|---|---|
+| `intake` | Parameter extraction (shared with the pipeline) and plan/chat routing |
+| `supervisor` | Turns the budget into per-desk constraints — nightly cap, fare tier, activity allowance. Deterministic on the first round; on later rounds it applies the critic's requested actions |
+| `flight_agent` | Scores fares on price against flying time, weighted by the tier |
+| `hotel_agent` | Best-rated stay inside the nightly cap; raises an issue when none fits instead of silently widening |
+| `restaurant_agent` | Assigns a distinct lunch and dinner per day, and asks the search for `days × 2` places so a week-long trip has enough |
+| `attraction_agent` | Groups sights by area so a day's stops are near each other |
+| `compose_budget` | Costs the trip from the options **chosen**, not the cheapest on the page |
+| `compose_itinerary` | Day-by-day skeleton from those per-day assignments |
+| `critic` | Rules first, model second — decides pass / revise / give_up |
+| `synthesis` | Streams the answer, including any problem the critic could not fix |
+
+Every specialist records a `Choice`: the option, a one-sentence rationale, and
+the runners-up, so the UI can show *why* and a revision can swap the pick
+without re-running the search.
+
+**The revision loop.** The critic may only request actions from a closed
+vocabulary (`actions.py`): `cheaper_hotels`, `drop_paid_activities`,
+`swap_flight`, `shorten_stay`, `rebalance_days`, `widen_hotel_search`. Each is
+a pure function returning a constraint delta, so the loop is testable without
+a model. Revisions are capped (`MAX_REVISIONS`, hard ceiling 3); on exhaustion
+the plan is delivered with the problem stated plainly rather than hidden.
+Because tool results are Redis-cached, a tighter cap re-filters the same
+result set instead of re-hitting the APIs.
+
+### 5.3 — Tools (7)
 
 | Tool | Description | Data Source | Fallback |
 |---|---|---|---|
 | `google_search` | Web search for travel info | SerpAPI | Error JSON |
 | `flight_search` | Real flight data | SerpAPI (Google Flights) | Mock data |
-| `hotel_search` | Hotel listings & prices | RapidAPI | Mock data |
-| `restaurant_finder` | Restaurant recommendations | Foursquare API | Mock data |
+| `hotel_search` | Hotel listings & prices | RapidAPI (Booking.com) | Mock data |
+| `restaurant_finder` | Eateries, `limit` places | OpenStreetMap (Overpass) | Mock data |
+| `attraction_finder` | Sights with coordinates | OpenStreetMap (Overpass) | Mock data |
 | `budget_calculator` | Estimate trip costs | Internal calculation | — |
-| `itinerary_builder` | Generate day-by-day plan | Internal logic | — |
+| `itinerary_builder` | Day-by-day plan, optionally from an explicit `daily_places` assignment | Internal logic | — |
 
-**Key Design Decisions:**
+**Key design decisions:**
 
-- All tools accept a single JSON string input (LangChain ReAct compatibility)
-- Results are cached in Redis (30–60 min TTL)
-- Real API calls gracefully fall back to mock data if APIs are unavailable
-- Wrapper functions parse JSON or treat input as a simple string
+- Results are cached in Redis; real data is kept far longer than estimates, so
+  a failed lookup is retried soon and a good one is not
+- Every real API call falls back to clearly-marked mock data, and the answer
+  is required to disclose it
+- `itinerary_builder`'s `daily_places` argument is additive — absent, the
+  original rotation runs, so the pipeline is unaffected by the graph's needs
 
-### 5.3 — API Endpoints
+### 5.4 — API Endpoints
 
 | Method | Endpoint | Description |
 |---|---|---|
@@ -221,7 +313,7 @@ The core intelligence uses **LangChain's ReAct (Reasoning + Acting) pattern**:
 | `GET` | `/api/itinerary/{id}` | Retrieve saved itinerary |
 | `GET` | `/health/` | Health check (DB + Redis status) |
 
-### 5.4 — Database Schema (PostgreSQL)
+### 5.5 — Database Schema (PostgreSQL)
 
 ```mermaid
 erDiagram
@@ -265,18 +357,63 @@ erDiagram
         datetime expires_at
         datetime created_at
     }
+    
+    PlanRun {
+        int id PK
+        string run_id UK
+        string session_id
+        string planner
+        string model_name
+        json params
+        json choices
+        json issues
+        int revisions
+        string verdict
+        float budget_total
+        float budget_limit
+        bool within_budget
+        int latency_ms
+        bool succeeded
+        datetime created_at
+    }
 ```
 
-### 5.5 — Redis Usage
+`PlanRun` is written by **both** planners at the same point — just before the
+result reaches the client — so comparing them is a query rather than a
+screenshot:
+
+```sql
+SELECT planner,
+       count(*)                                        AS runs,
+       round(avg(revisions), 2)                        AS avg_revisions,
+       count(*) FILTER (WHERE within_budget IS FALSE)  AS over_budget,
+       round(avg(latency_ms) / 1000.0, 1)              AS avg_seconds
+FROM plan_runs
+WHERE budget_limit > 0
+GROUP BY planner;
+```
+
+### 5.6 — Redis Usage
 
 | Feature | Key Pattern | TTL |
 |---|---|---|
 | **Session Management** | `session:{session_id}` | 24 hours |
 | **Rate Limiting** | `ratelimit:{user_id}` | 1 hour (20 req/hr) |
+| **Stored plan** | `plan:{session_id}` | 24 hours |
 | **Flight Cache** | `flights:{origin}:{dest}:...` | 30 minutes |
 | **Hotel Cache** | `hotels:{city}:...` | 30 minutes |
-| **Restaurant Cache** | `restaurants:{city}:...` | 60 minutes |
+| **Restaurant Cache** | `restaurants:{city}:{cuisine}:{budget}:{limit}` | 1 day (real) / 10 min (estimated) |
+| **Sights Cache** | `attractions:{city}` | 7 days (real) / 10 min (estimated) |
 | **Search Cache** | `google_search:{query}:...` | 60 minutes |
+
+Estimates expire quickly so the next attempt can do better; real data is kept
+far longer because OpenStreetMap barely changes and public Overpass is slow
+when busy. The restaurant key includes `limit` because a week-long trip asks
+for more places than a weekend, and a cached answer for eight must not be
+served to a request for fourteen.
+
+This cache is also what makes a revision round cheap: a tightened nightly cap
+re-filters the same cached hotel results instead of calling the API again.
 
 ---
 
@@ -293,16 +430,22 @@ Both modes output data to the **ItineraryDisplay** component.
 
 | Component | Purpose |
 |---|---|
-| `ChatInterface` | Full chat UI with SSE streaming, message history, model selection |
+| `ChatInterface` | Full chat UI with SSE streaming, message history, model and planner selection |
+| `AgentTimeline` | The desks: each specialist's constraint, what it chose and why, the critic's verdict, and any revision rounds |
 | `MessageBubble` | Individual message rendering (supports markdown) |
 | `StreamingIndicator` | Animated typing indicator during AI processing |
+| `SourceLedger` | Where every number came from — live or estimated, per source |
 | `ManualPlanningForm` | Form inputs for structured trip planning |
 | `ItineraryDisplay` | Renders complete itinerary (flights, hotels, daily plans) |
 | `DayPlan` | Single day view (morning/afternoon/evening activities) |
 | `BudgetBreakdown` | Visual budget analysis |
 | `ThemeProvider` | Dark/light mode toggle (React Context) |
-| `BackgroundSlider` | Animated travel-themed background imagery |
 | `SkeletonLoader` | Loading state placeholders |
+
+`AgentTimeline` is driven by a pure `reduceTrace(trace, event)` function, so
+the panel holds no logic of its own. The pipeline planner emits none of these
+events and the reducer ignores what it does not recognise, so the panel simply
+stays hidden for it.
 
 ### 6.3 — API Client (`lib/api-client.ts`)
 
@@ -340,30 +483,36 @@ Frontend (ChatInterface) ──SSE POST──▶ Backend /api/chat/
     │                              Rate Limit Check (Redis)
     │                                       │
     │                                       ▼
-    │                              TravelPlanningAgent.plan_trip()
+    │                              create_planner(planner=…)
     │                                       │
-    │                              ┌────────┴────────┐
-    │                              │  ReAct Loop      │
-    │                              │  Thought → Action │
-    │                              │  → Observation    │
-    │                              │  (repeat)         │
-    │                              └────────┬────────┘
+    │                        ┌──────────────┴──────────────┐
+    │                        ▼                             ▼
+    │              pipeline: extract →           graph: intake → supervisor
+    │              fetch all in parallel →       → 4 specialists in parallel
+    │              cost → write                  → cost → itinerary → critic
+    │                        │                     → (revise ↺) → write
+    │                        │                             │
+    │                        └──────────────┬──────────────┘
     │                                       │
-    │                              Tool Calls (cached via Redis):
+    │                              Tool calls (cached via Redis):
     │                              • flight_search → SerpAPI
     │                              • hotel_search → RapidAPI
-    │                              • restaurant_finder → Foursquare
+    │                              • restaurant_finder / attraction_finder → OSM
     │                              • budget_calculator
     │                              • itinerary_builder
     │                                       │
     │                                       ▼
-    │                              Final Answer + Collected Data
+    │                              Answer + collected data → plan_runs row
     │                                       │
     │◀──── SSE Stream (status → tokens → result) ────┘
-    │
+    │      graph adds: agent_start, agent_result,
+    │                  critique, revision
     ▼
-ItineraryDisplay (renders structured data)
+ItineraryDisplay + AgentTimeline
 ```
+
+The extra event types are **additive**: a client that does not know them
+ignores them, which is why the same frontend drives either planner.
 
 ### Manual Planning Flow
 
@@ -446,7 +595,13 @@ docker compose up --build
 
 | Decision | Rationale |
 |---|---|
-| **ReAct agent pattern** | Works reliably with smaller local models that don't support native function calling |
+| **A deterministic pipeline, not an agent loop** | A forced ReAct loop let smaller local models skip tools and run unbounded; a fixed order gives 100% tool coverage and bounded latency |
+| **Two planners rather than a replacement** | The pipeline stays the measured baseline, so "v2 is better" is a table rather than a claim |
+| **Rules before the model, in the critic** | The deterministic pass alone can drive a revision, so the loop still works when a small model returns malformed JSON |
+| **A closed vocabulary of revision actions** | Free-form instructions make replanning another prompt-engineering problem; six pure functions are testable without a model |
+| **Advisory LLM issues capped below blocker** | A hallucinating critic can add an observation but can never cause a revision or prevent termination |
+| **Choices recorded with their reasons** | The budget can be costed from what was actually chosen, and the UI can answer "why this hotel?" |
+| **Bounded revisions with an honest give-up** | A plan that cannot be fixed is delivered with the problem stated, never silently or in a loop |
 | **Ollama + cloud hybrid** | Local-first for privacy & cost; cloud Gemini as a quality fallback |
 | **Redis for sessions** | Fast ephemeral storage with TTL; offloads session state from the DB |
 | **PostgreSQL for persistence** | Durable storage for saved itineraries and user data |
@@ -461,7 +616,7 @@ docker compose up --build
 
 | Schema | Purpose |
 |---|---|
-| `ChatRequest` | Chat input: message, session_id, model |
+| `ChatRequest` | Chat input: message, session_id, model, planner |
 | `ChatResponse` | Chat output: response text, session_id, itinerary |
 | `ItinerarySchema` | Complete itinerary with flights, hotels, daily plans, budget |
 | `FlightSchema` | Flight details (airline, price, times, booking link) |
@@ -490,4 +645,84 @@ docker compose up --build
 
 ---
 
-> **Note:** The application defaults to INR (Indian Rupee) for pricing, and the AI agent's system date is set to **2026-05-01** to ensure future date planning.
+## 13. The multi-agent planner, measured
+
+Claims about agent architectures are cheap. The eval harness runs the same
+16 golden queries through both planners and scores them programmatically:
+
+```bash
+docker compose exec backend python -m evals.run_evals --compare
+```
+
+Beyond "did it answer", the golden cases assert plan quality —
+`expect_budget_respected`, `expect_budget_disclosure`,
+`expect_min_activities_per_day`, `expect_no_duplicate_restaurants` — because
+those are the failures a reader notices and a success rate cannot see.
+
+### Result (16 cases, `qwen3:8b`)
+
+```
+                            pipeline       graph
+pass rate                      13/16       15/16
+checks passed                190/193     192/193
+budget violations                3/7         3/7
+p50 latency                    50.9s       59.7s
+avg revisions                    0.0         0.2
+```
+
+**What the graph fixed.** Both duplicate-restaurant failures
+(`jaipur_two_people`, and `week_in_goa_repeats` with six repeats over seven
+days). The pipeline rotates places with `index % len(list)`, which repeats
+every other day; the graph assigns each day the next unused pair and asks the
+search for `days × 2` places so the supply exists in the first place.
+
+**What it did not fix.** The budget column is unchanged. The critic fired on
+all three over-budget cases and cut costs each time — `tight_family_budget`
+went ₹72,600 → ₹68,200 — but none of those gaps could be closed:
+
+| Case | Why no plan fits |
+|---|---|
+| `impossible_budget` | Maldives, 5 days, ₹5,000 — flights alone exceed it |
+| `tight_family_budget` | fixed costs reach ₹37,400 of a ₹40,000 limit before any flight or room |
+| `conflicting_interests` | ₹26,400 against ₹25,000 after taking the cheapest room offered |
+
+They pass their cases on disclosure, but disclosure is not new — the pipeline
+reports overruns too. So the revision loop is validated by construction and by
+trace (see below), **not yet by this eval**: the golden set has no case where
+a cheaper room is both necessary and sufficient. Adding one is the next honest
+improvement to the suite.
+
+**Cost.** The graph is roughly 17% slower. That is the price of selecting,
+critiquing, and occasionally replanning.
+
+### A revision, traced
+
+A 4-day Manali trip for four under ₹40,000, as the UI showed it:
+
+```
+DESKS                                              ROUND 2
+Flight desk    cheapest fare              2 found    EST.
+  IndiGo (Demo) at ₹4,500 — cheapest of 2
+Hotel desk     under ₹2,500 a night       2 found    EST.
+  Comfort Inn Manali (Demo) at ₹2,500 — best rated of 1 under the ₹2,500 cap
+Local desk     activities under ₹6,000   18 found    LIVE
+Critic         budget, coverage, feasibility    BEST EFFORT
+  ✗ Plan costs ₹68,200 against a ₹40,000 budget (70% over)
+  · flights, hotels are estimated, not live prices
+  Round 1: cheaper_hotels(ratio=0.4), drop_paid_activities(count=2)
+```
+
+Round 1 chose a ₹3,500 room (₹72,600 total); the critic requested a specific
+cut; round 2 reached the cheapest ₹2,500 room (₹68,200); the gap was still
+unclosable, so the plan shipped with the overrun stated rather than hidden.
+
+Note the hotel desk's remit reads ₹2,500, not the ₹1,400 that
+`cheaper_hotels(0.4)` would imply: the action floors its cap at the cheapest
+room the search actually found, because a cap below every option only spends a
+round to learn what is already known.
+
+---
+
+> **Note:** The application defaults to INR (Indian Rupee) for pricing. Prompts
+> compute the current date per request, so "next month" always resolves against
+> today rather than a date frozen at import time.
