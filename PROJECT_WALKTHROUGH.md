@@ -687,10 +687,23 @@ went ₹72,600 → ₹68,200 — but none of those gaps could be closed:
 | `conflicting_interests` | ₹26,400 against ₹25,000 after taking the cheapest room offered |
 
 They pass their cases on disclosure, but disclosure is not new — the pipeline
-reports overruns too. So the revision loop is validated by construction and by
-trace (see below), **not yet by this eval**: the golden set has no case where
-a cheaper room is both necessary and sufficient. Adding one is the next honest
-improvement to the suite.
+reports overruns too.
+
+**A case where the loop does close the gap.** `revision_closes_gap` is built
+so a cheaper room is exactly necessary and sufficient — 2 days in Coorg for
+one under ₹20,000:
+
+| | Round 1 | Round 2 |
+|---|---|---|
+| Nightly cap | ₹3,500 (35% of the budget over 2 nights) | ₹2,842, after `cheaper_hotels(ratio=0.812)` |
+| Hotel chosen | Grand ₹3,500 (rating 4.5) | Comfort ₹2,500 |
+| Trip total | ₹21,450 — over | **₹19,250 — fits** |
+
+The critic works out that specific ratio from the size of the gap rather than
+trying a blind reduction, so one round is enough. The case carries
+`"only_planner": "graph"`, because asserting that a plan was *revised* is
+meaningless against a planner that never chooses and so never revises —
+running it against the pipeline would be a rigged comparison, not a test.
 
 **Cost.** The graph is roughly 17% slower. That is the price of selecting,
 critiquing, and occasionally replanning.

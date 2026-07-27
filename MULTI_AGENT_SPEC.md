@@ -1,8 +1,9 @@
 # Multi-Agent Travel Orchestrator — v2 Specification
 
-**Status:** M0–M5 landed and verified end to end. Open follow-up: the golden
-set still lacks a case with a *closable* budget gap, so the revision loop is
-proven by construction and by trace rather than by the eval (see §9).
+**Status:** M0–M5 landed and verified end to end, including a golden case
+(`revision_closes_gap`) where the loop demonstrably takes an over-budget plan
+and brings it inside the limit. Open follow-up: `drop_paid_activities` and
+`rebalance_days` set constraints nothing currently reads (see §5.3).
 **Branch:** `feat/multi-agent-orchestrator`
 **Baseline:** the deterministic pipeline in `backend/app/agents/travel_agent.py` (v1)
 
@@ -257,6 +258,15 @@ widen_hotel_search()                  # only when hotel filter returned empty
 Each is a pure function `(PlanState, args) -> constraints_delta`. Unit-testable without any
 model. **This is the core of the project** — the intelligence lives in bounded, testable
 operators, not in prompt strings.
+
+> **Known gap.** `cheaper_hotels`, `swap_flight`, `shorten_stay` and
+> `widen_hotel_search` all change what the next round does. `drop_paid_activities`
+> and `rebalance_days` currently do not: they set `max_paid_activities` and
+> `rebalance_days` constraints that no node reads, because `budget_calculator`
+> derives activity cost from trip length alone and the itinerary is not
+> re-clustered on a revision. The critic can therefore request them without
+> effect. Closing this means giving `budget_calculator` an activity-budget
+> override and having `compose_itinerary` honour a re-cluster request.
 
 ---
 

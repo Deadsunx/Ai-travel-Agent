@@ -125,6 +125,12 @@ def score_result(case: dict, result: dict) -> list:
             _check(checks, "budget_respected", budget.get("within_budget") is True,
                    f"total {budget.get('total_with_buffer')} vs limit {budget.get('budget_limit')}")
 
+        if case.get("expect_min_revisions"):
+            want = case["expect_min_revisions"]
+            got = collected.get("revisions", 0)
+            _check(checks, "plan_was_revised", got >= want,
+                   f"{got} revision(s), wanted at least {want}")
+
         if case.get("expect_budget_disclosure") and budget:
             # An impossible budget is fine; silently ignoring it is not.
             if budget.get("within_budget") is False:
@@ -192,6 +198,14 @@ async def run_suite(cases: list, model: str, planner: str, run_id: str) -> list:
     reports = []
 
     for case in cases:
+        # Some assertions only mean anything for a planner that has the
+        # capability — a case about revising a plan cannot fairly be run
+        # against a planner that never chooses, and so never revises.
+        only = case.get("only_planner")
+        if only and only != planner:
+            print(f"SKIP {case['id']} (only applies to the {only} planner)")
+            continue
+
         prior = case.get("requires_prior")
         if prior and prior not in sessions:
             print(f"SKIP {case['id']} (requires {prior}, not run)")
