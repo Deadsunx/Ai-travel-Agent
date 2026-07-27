@@ -28,6 +28,7 @@ async def synthesis(state: PlanState, config: Dict[str, Any]) -> Dict[str, Any]:
             user_query,
             json.dumps(collected, ensure_ascii=False, default=str),
             agent.has_mock_data(collected),
+            issues=state.get("issues"),
         )
     else:
         stored = agent.load_stored_plan()

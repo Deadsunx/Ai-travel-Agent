@@ -53,6 +53,29 @@ def test_cheaper_hotels_tightens_the_cap():
     assert not needs_refetch(applied)
 
 
+def test_cheaper_hotels_never_cuts_below_the_cheapest_room():
+    """A cap under every room wastes a round proving what is already known."""
+    state = _state(
+        hotels={"hotels": [{"name": "Inn", "price_per_night": 2500},
+                           {"name": "Lodge", "price_per_night": 3000}]},
+        requests=[request("cheaper_hotels", ratio=0.4)],
+    )
+    delta, _ = apply_actions(state)
+
+    assert delta["constraints"]["hotel_nightly_cap"] == 2500    # not 3500 * 0.4
+
+
+def test_cheaper_hotels_never_loosens_the_cap():
+    """When nothing is affordable already, the cap is left where it is."""
+    state = _state(
+        hotels={"hotels": [{"name": "Pricey", "price_per_night": 9000}]},
+        requests=[request("cheaper_hotels", ratio=0.75)],
+    )
+    delta, _ = apply_actions(state)
+
+    assert delta["constraints"]["hotel_nightly_cap"] == 2625    # 3500 * 0.75
+
+
 def test_cheaper_hotels_anchors_on_found_prices_when_uncapped():
     state = _state(constraints={"hotel_nightly_cap": None})
     state["requests"] = [request("cheaper_hotels", ratio=0.5)]

@@ -46,6 +46,10 @@ class Settings(BaseSettings):
     max_revisions: int = 1
     # Model for the LLM critic pass; empty = use the request's main model.
     critic_model: str = ""
+    # The advisory (LLM) half of the critic. Off by default: it costs a
+    # whole extra call per plan and the deterministic rules are what
+    # actually drive revisions.
+    critic_advisory_pass: bool = False
     
     class Config:
         env_file = ".env"

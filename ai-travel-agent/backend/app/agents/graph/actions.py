@@ -40,14 +40,27 @@ def describe(req: Dict[str, Any]) -> str:
 
 def cheaper_hotels(state: PlanState, constraints: Dict[str, Any],
                    ratio: float = 0.75) -> Dict[str, Any]:
-    """Tighten the nightly cap, then re-filter the cached hotel results."""
+    """Tighten the nightly cap, then re-filter the cached hotel results.
+
+    The new cap never falls below the cheapest room the search actually
+    found: a cap under it excludes everything, which costs a revision round
+    to learn something already known and leaves the traveller reading
+    "no stay under ₹1,400" when ₹2,500 was always the floor.
+    """
     cap = constraints.get("hotel_nightly_cap")
+    floor = cheapest(state.get("hotels"), "hotels", "price_per_night")
     if not cap:
-        # No cap yet (no budget given): anchor on what the search actually found.
-        cap = cheapest(state.get("hotels"), "hotels", "price_per_night")
+        # No cap yet (no budget given): anchor on what the search found.
+        cap = floor
     if not cap:
         return {}
-    return {"constraints": {"hotel_nightly_cap": max(round(cap * ratio), 1)}}
+
+    tightened = max(round(cap * ratio), 1)
+    if floor and floor < cap:
+        tightened = max(tightened, floor)
+    # Never loosen: this action exists to make the plan cheaper, so a floor
+    # above the current cap (nothing affordable already) leaves it alone.
+    return {"constraints": {"hotel_nightly_cap": min(tightened, cap)}}
 
 
 def drop_paid_activities(state: PlanState, constraints: Dict[str, Any],

@@ -143,9 +143,10 @@ async def hotel_agent(state: PlanState, config: Dict[str, Any]) -> Dict[str, Any
     choice = selection.as_choice()
     if choice:
         update["choices"] = {"hotel": choice}
-    if selection.issue:
-        # Surfaced now, judged by the critic once the whole plan exists.
-        update["specialist_issues"] = [selection.issue]
+    # Always written, never omitted: a key left out of a node's update keeps
+    # its previous value, so a revision that fixes the problem would other-
+    # wise leave the old complaint standing.
+    update["specialist_issues"] = [selection.issue] if selection.issue else []
     return update
 
 

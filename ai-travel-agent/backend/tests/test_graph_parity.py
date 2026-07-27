@@ -66,7 +66,10 @@ PLAN_PARAMS = {
     "end_date": "2099-01-18",
     "days": 3,
     "travelers": 2,
-    "budget_limit": 30000.0,
+    # Affordable on purpose: these tests are about the data contract and the
+    # choices, so the critic must have nothing to send back. The revision
+    # loop has its own tests in test_revision_loop.py.
+    "budget_limit": 42000.0,
     "interests": "beaches, food",
     "cuisine": "seafood",
 }
@@ -160,7 +163,7 @@ def _tokens(events):
 @pytest.mark.asyncio
 async def test_both_planners_speak_the_same_data_shape(stub_planners):
     """The contract the frontend and the database depend on."""
-    query = "Plan a 3-day trip to Goa from Mumbai under 30000 rupees"
+    query = "Plan a 3-day trip to Goa from Mumbai under 42000 rupees"
 
     pipeline_events = await _collect_events(
         v1.TravelPlanningAgent("parity-pipeline", "test-model"), query
@@ -189,15 +192,15 @@ async def test_both_planners_speak_the_same_data_shape(stub_planners):
 async def test_graph_records_why_it_chose(stub_planners):
     events = await _collect_events(
         GraphPlanner("graph-choices", "test-model"),
-        "Plan a 3-day trip to Goa from Mumbai under 30000 rupees",
+        "Plan a 3-day trip to Goa from Mumbai under 42000 rupees",
     )
     choices = {c["kind"]: c for c in _result(events)["collected_data"]["choices"]}
 
     assert set(choices) == {"flight", "hotel"}
-    # Budget 30000 over 3 days puts the nightly cap at 3500, so the 5400
+    # Budget 42000 over 3 days puts the nightly cap at 4900, so the 5400
     # room is out and the better-rated 3200 beats the 2400 hostel.
     assert choices["hotel"]["item"]["name"] == "Beach Retreat"
-    assert "₹3,500 cap" in choices["hotel"]["rationale"]
+    assert "₹4,900 cap" in choices["hotel"]["rationale"]
     assert choices["flight"]["item"]["airline"] == "IndiGo"
     assert choices["hotel"]["alternatives"], "runners-up kept for a later swap"
 
@@ -228,7 +231,7 @@ async def test_chat_turn_skips_planning_in_both(stub_planners):
 async def test_graph_reports_each_specialist(stub_planners):
     events = await _collect_events(
         GraphPlanner("graph-trace", "test-model"),
-        "Plan a 3-day trip to Goa from Mumbai under 30000 rupees",
+        "Plan a 3-day trip to Goa from Mumbai under 42000 rupees",
     )
 
     started = {e["agent"] for e in events if e["type"] == "agent_start"}
@@ -238,7 +241,7 @@ async def test_graph_reports_each_specialist(stub_planners):
     assert sections == {"flights", "hotels", "restaurants", "attractions"}
 
     critiques = [e for e in events if e["type"] == "critique"]
-    assert [c["verdict"] for c in critiques] == ["pass"], "M1 critic has no rules yet"
+    assert [c["verdict"] for c in critiques] == ["pass"], "this plan is inside its budget"
 
 
 @pytest.mark.asyncio
@@ -248,7 +251,7 @@ async def test_budget_follows_the_chosen_hotel_not_the_cheapest(stub_planners):
     v1 costs the ₹2,400 hostel nobody was shown; v2 costs the ₹3,200 room it
     actually chose.
     """
-    query = "Plan a 3-day trip to Goa from Mumbai under 30000 rupees"
+    query = "Plan a 3-day trip to Goa from Mumbai under 42000 rupees"
 
     pipeline_events = await _collect_events(
         v1.TravelPlanningAgent("budget-pipeline", "test-model"), query

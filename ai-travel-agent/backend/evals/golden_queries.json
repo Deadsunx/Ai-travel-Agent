@@ -60,7 +60,7 @@
     "expect_plan": true,
     "expect_travelers": 4,
     "expect_budget_limit": 40000,
-    "expect_budget_respected": true,
+    "expect_budget_disclosure": true,
     "expect_no_duplicate_restaurants": true
   },
   {
