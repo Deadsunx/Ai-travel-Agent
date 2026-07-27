@@ -11,12 +11,34 @@ export interface ChatRequest {
     session_id: string
     user_id?: string
     model?: string
+    /** 'pipeline' (v1) or 'graph' (v2 multi-agent). Omitted = server default. */
+    planner?: string
 }
 
+/**
+ * Events the backend streams over SSE.
+ *
+ * The first five are the original pipeline events; agent_start / agent_result
+ * / critique / revision are added by the multi-agent planner. Handlers must
+ * ignore unknown types so either planner can drive this client.
+ */
 export interface StreamEvent {
-    type: 'status' | 'result' | 'error' | 'token' | 'cancelled'
+    type:
+        | 'status' | 'result' | 'error' | 'token' | 'cancelled'
+        | 'agent_start' | 'agent_result' | 'critique' | 'revision'
     message?: string
     data?: any
+    // agent_start / agent_result
+    agent?: string
+    section?: string
+    count?: number
+    source?: string
+    constraints?: Record<string, any>
+    // critique / revision
+    verdict?: string
+    issues?: any[]
+    round?: number
+    actions?: string[]
 }
 
 /**

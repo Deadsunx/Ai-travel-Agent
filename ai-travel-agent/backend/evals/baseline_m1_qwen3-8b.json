@@ -1,0 +1,2313 @@
+{
+  "model": "qwen3:8b",
+  "summaries": {
+    "pipeline": {
+      "cases": 16,
+      "passed": 11,
+      "checks": 193,
+      "checks_passed": 187,
+      "budget_violations": 5,
+      "budget_cases": 7,
+      "p50_latency": 69.6,
+      "avg_revisions": 0.0
+    },
+    "graph": {
+      "cases": 16,
+      "passed": 11,
+      "checks": 193,
+      "checks_passed": 188,
+      "budget_violations": 5,
+      "budget_cases": 7,
+      "p50_latency": 54.6,
+      "avg_revisions": 0.0
+    }
+  },
+  "reports": {
+    "pipeline": [
+      {
+        "case": "goa_budget_trip",
+        "planner": "pipeline",
+        "latency_s": 42.6,
+        "checks": [
+          {
+            "name": "success",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "response_nontrivial",
+            "ok": true,
+            "detail": "len=4708"
+          },
+          {
+            "name": "has_flights",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "has_hotels",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "has_restaurants",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "has_budget",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "has_itinerary",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "markdown_sections",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "days_extracted",
+            "ok": true,
+            "detail": "got 3, want 3"
+          },
+          {
+            "name": "budget_limit_extracted",
+            "ok": true,
+            "detail": "got 30000.0"
+          },
+          {
+            "name": "future_dates",
+            "ok": true,
+            "detail": "start_date=2026-08-10"
+          },
+          {
+            "name": "budget_math",
+            "ok": true,
+            "detail": "59691+5969 vs 65660"
+          },
+          {
+            "name": "budget_respected",
+            "ok": false,
+            "detail": "total 65660 vs limit 30000"
+          },
+          {
+            "name": "days_not_thin",
+            "ok": true,
+            "detail": "days below 3 activities: []"
+          },
+          {
+            "name": "no_duplicate_restaurants",
+            "ok": true,
+            "detail": "repeated: []"
+          },
+          {
+            "name": "mock_disclosed",
+            "ok": true,
+            "detail": ""
+          }
+        ],
+        "passed": false,
+        "over_budget": true,
+        "had_budget_limit": true,
+        "revisions": 0
+      },
+      {
+        "case": "jaipur_two_people",
+        "planner": "pipeline",
+        "latency_s": 61.3,
+        "checks": [
+          {
+            "name": "success",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "response_nontrivial",
+            "ok": true,
+            "detail": "len=5713"
+          },
+          {
+            "name": "has_flights",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "has_hotels",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "has_restaurants",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "has_budget",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "has_itinerary",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "markdown_sections",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "days_extracted",
+            "ok": true,
+            "detail": "got 5, want 5"
+          },
+          {
+            "name": "travelers_extracted",
+            "ok": true,
+            "detail": "got 2"
+          },
+          {
+            "name": "future_dates",
+            "ok": true,
+            "detail": "start_date=2026-12-01"
+          },
+          {
+            "name": "budget_math",
+            "ok": true,
+            "detail": "167000+16700 vs 183700"
+          },
+          {
+            "name": "days_not_thin",
+            "ok": true,
+            "detail": "days below 3 activities: []"
+          },
+          {
+            "name": "no_duplicate_restaurants",
+            "ok": false,
+            "detail": "repeated: ['Laxmi Mishthan Bhandar', 'Pizza Hut']"
+          },
+          {
+            "name": "mock_disclosed",
+            "ok": true,
+            "detail": ""
+          }
+        ],
+        "passed": false,
+        "over_budget": false,
+        "had_budget_limit": false,
+        "revisions": 0
+      },
+      {
+        "case": "kerala_no_details",
+        "planner": "pipeline",
+        "latency_s": 97.7,
+        "checks": [
+          {
+            "name": "success",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "response_nontrivial",
+            "ok": true,
+            "detail": "len=4650"
+          },
+          {
+            "name": "has_flights",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "has_hotels",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "has_restaurants",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "has_budget",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "has_itinerary",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "markdown_sections",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "future_dates",
+            "ok": true,
+            "detail": "start_date=2026-08-10"
+          },
+          {
+            "name": "budget_math",
+            "ok": true,
+            "detail": "23421+2342 vs 25763"
+          },
+          {
+            "name": "mock_disclosed",
+            "ok": true,
+            "detail": ""
+          }
+        ],
+        "passed": true,
+        "over_budget": false,
+        "had_budget_limit": false,
+        "revisions": 0
+      },
+      {
+        "case": "udaipur_group",
+        "planner": "pipeline",
+        "latency_s": 53.1,
+        "checks": [
+          {
+            "name": "success",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "response_nontrivial",
+            "ok": true,
+            "detail": "len=4892"
+          },
+          {
+            "name": "has_flights",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "has_hotels",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "has_restaurants",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "has_budget",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "has_itinerary",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "markdown_sections",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "days_extracted",
+            "ok": true,
+            "detail": "got 4, want 4"
+          },
+          {
+            "name": "travelers_extracted",
+            "ok": true,
+            "detail": "got 3"
+          },
+          {
+            "name": "future_dates",
+            "ok": true,
+            "detail": "start_date=2026-08-10"
+          },
+          {
+            "name": "budget_math",
+            "ok": true,
+            "detail": "96452+9645 vs 106097"
+          },
+          {
+            "name": "mock_disclosed",
+            "ok": true,
+            "detail": ""
+          }
+        ],
+        "passed": true,
+        "over_budget": false,
+        "had_budget_limit": false,
+        "revisions": 0
+      },
+      {
+        "case": "past_date_corrected",
+        "planner": "pipeline",
+        "latency_s": 116.6,
+        "checks": [
+          {
+            "name": "success",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "response_nontrivial",
+            "ok": true,
+            "detail": "len=5159"
+          },
+          {
+            "name": "has_flights",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "has_hotels",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "has_restaurants",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "has_budget",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "has_itinerary",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "markdown_sections",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "future_dates",
+            "ok": true,
+            "detail": "start_date=2026-08-10"
+          },
+          {
+            "name": "budget_math",
+            "ok": true,
+            "detail": "23916+2392 vs 26308"
+          },
+          {
+            "name": "mock_disclosed",
+            "ok": true,
+            "detail": ""
+          }
+        ],
+        "passed": true,
+        "over_budget": false,
+        "had_budget_limit": false,
+        "revisions": 0
+      },
+      {
+        "case": "greeting_no_plan",
+        "planner": "pipeline",
+        "latency_s": 3.7,
+        "checks": [
+          {
+            "name": "success",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "response_nontrivial",
+            "ok": true,
+            "detail": "len=204"
+          },
+          {
+            "name": "no_hallucinated_prices",
+            "ok": true,
+            "detail": "prices shown without any collected data"
+          }
+        ],
+        "passed": true,
+        "over_budget": false,
+        "had_budget_limit": false,
+        "revisions": 0
+      },
+      {
+        "case": "refinement_followup",
+        "planner": "pipeline",
+        "latency_s": 30.8,
+        "checks": [
+          {
+            "name": "success",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "response_nontrivial",
+            "ok": true,
+            "detail": "len=605"
+          },
+          {
+            "name": "no_hallucinated_prices",
+            "ok": true,
+            "detail": "prices shown without any collected data"
+          }
+        ],
+        "passed": true,
+        "over_budget": true,
+        "had_budget_limit": true,
+        "revisions": 0
+      },
+      {
+        "case": "impossible_budget",
+        "planner": "pipeline",
+        "latency_s": 112.5,
+        "checks": [
+          {
+            "name": "success",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "response_nontrivial",
+            "ok": true,
+            "detail": "len=5710"
+          },
+          {
+            "name": "has_flights",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "has_hotels",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "has_restaurants",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "has_budget",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "has_itinerary",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "markdown_sections",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "budget_limit_extracted",
+            "ok": true,
+            "detail": "got 5000.0"
+          },
+          {
+            "name": "future_dates",
+            "ok": true,
+            "detail": "start_date=2026-08-10"
+          },
+          {
+            "name": "budget_math",
+            "ok": true,
+            "detail": "34500+3450 vs 37950"
+          },
+          {
+            "name": "over_budget_disclosed",
+            "ok": true,
+            "detail": "answer never says the trip is over budget"
+          },
+          {
+            "name": "mock_disclosed",
+            "ok": true,
+            "detail": ""
+          }
+        ],
+        "passed": true,
+        "over_budget": true,
+        "had_budget_limit": true,
+        "revisions": 0
+      },
+      {
+        "case": "tight_family_budget",
+        "planner": "pipeline",
+        "latency_s": 76.8,
+        "checks": [
+          {
+            "name": "success",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "response_nontrivial",
+            "ok": true,
+            "detail": "len=5408"
+          },
+          {
+            "name": "has_flights",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "has_hotels",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "has_restaurants",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "has_budget",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "has_itinerary",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "markdown_sections",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "travelers_extracted",
+            "ok": true,
+            "detail": "got 4"
+          },
+          {
+            "name": "budget_limit_extracted",
+            "ok": true,
+            "detail": "got 40000.0"
+          },
+          {
+            "name": "future_dates",
+            "ok": true,
+            "detail": "start_date=2026-08-10"
+          },
+          {
+            "name": "budget_math",
+            "ok": true,
+            "detail": "62496+6250 vs 68746"
+          },
+          {
+            "name": "budget_respected",
+            "ok": false,
+            "detail": "total 68746 vs limit 40000"
+          },
+          {
+            "name": "no_duplicate_restaurants",
+            "ok": false,
+            "detail": "repeated: ['Coastal Kitchen Manali (Demo)', 'The Spice Route Manali (Demo)']"
+          },
+          {
+            "name": "mock_disclosed",
+            "ok": true,
+            "detail": ""
+          }
+        ],
+        "passed": false,
+        "over_budget": true,
+        "had_budget_limit": true,
+        "revisions": 0
+      },
+      {
+        "case": "long_trip_clamped",
+        "planner": "pipeline",
+        "latency_s": 124.2,
+        "checks": [
+          {
+            "name": "success",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "response_nontrivial",
+            "ok": true,
+            "detail": "len=8146"
+          },
+          {
+            "name": "has_flights",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "has_hotels",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "has_restaurants",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "has_budget",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "has_itinerary",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "markdown_sections",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "days_clamped",
+            "ok": true,
+            "detail": "got 14, max 14"
+          },
+          {
+            "name": "future_dates",
+            "ok": true,
+            "detail": "start_date=2026-08-10"
+          },
+          {
+            "name": "budget_math",
+            "ok": true,
+            "detail": "255268+25527 vs 280795"
+          },
+          {
+            "name": "days_not_thin",
+            "ok": true,
+            "detail": "days below 3 activities: []"
+          },
+          {
+            "name": "mock_disclosed",
+            "ok": true,
+            "detail": ""
+          }
+        ],
+        "passed": true,
+        "over_budget": false,
+        "had_budget_limit": false,
+        "revisions": 0
+      },
+      {
+        "case": "week_in_goa_repeats",
+        "planner": "pipeline",
+        "latency_s": 71.0,
+        "checks": [
+          {
+            "name": "success",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "response_nontrivial",
+            "ok": true,
+            "detail": "len=6328"
+          },
+          {
+            "name": "has_flights",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "has_hotels",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "has_restaurants",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "has_budget",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "has_itinerary",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "markdown_sections",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "days_extracted",
+            "ok": true,
+            "detail": "got 7, want 7"
+          },
+          {
+            "name": "future_dates",
+            "ok": true,
+            "detail": "start_date=2026-07-31"
+          },
+          {
+            "name": "budget_math",
+            "ok": true,
+            "detail": "260938+26094 vs 287032"
+          },
+          {
+            "name": "days_not_thin",
+            "ok": true,
+            "detail": "days below 3 activities: []"
+          },
+          {
+            "name": "no_duplicate_restaurants",
+            "ok": false,
+            "detail": "repeated: ['Cecilia Beach Shack', \"Claudi's Corner\", 'Fishka Bar & Restaurant', \"Gloria's\", \"Martin's Corner\", 'Once upon a time']"
+          },
+          {
+            "name": "mock_disclosed",
+            "ok": true,
+            "detail": ""
+          }
+        ],
+        "passed": false,
+        "over_budget": false,
+        "had_budget_limit": false,
+        "revisions": 0
+      },
+      {
+        "case": "luxury_solo",
+        "planner": "pipeline",
+        "latency_s": 59.5,
+        "checks": [
+          {
+            "name": "success",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "response_nontrivial",
+            "ok": true,
+            "detail": "len=5203"
+          },
+          {
+            "name": "has_flights",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "has_hotels",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "has_restaurants",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "has_budget",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "has_itinerary",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "markdown_sections",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "travelers_extracted",
+            "ok": true,
+            "detail": "got 1"
+          },
+          {
+            "name": "budget_limit_extracted",
+            "ok": true,
+            "detail": "got 200000.0"
+          },
+          {
+            "name": "future_dates",
+            "ok": true,
+            "detail": "start_date=2026-08-10"
+          },
+          {
+            "name": "budget_math",
+            "ok": true,
+            "detail": "22926+2293 vs 25219"
+          },
+          {
+            "name": "budget_respected",
+            "ok": true,
+            "detail": "total 25219 vs limit 200000"
+          },
+          {
+            "name": "mock_disclosed",
+            "ok": true,
+            "detail": ""
+          }
+        ],
+        "passed": true,
+        "over_budget": false,
+        "had_budget_limit": true,
+        "revisions": 0
+      },
+      {
+        "case": "conflicting_interests",
+        "planner": "pipeline",
+        "latency_s": 76.8,
+        "checks": [
+          {
+            "name": "success",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "response_nontrivial",
+            "ok": true,
+            "detail": "len=4866"
+          },
+          {
+            "name": "has_flights",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "has_hotels",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "has_restaurants",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "has_budget",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "has_itinerary",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "markdown_sections",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "budget_limit_extracted",
+            "ok": true,
+            "detail": "got 25000.0"
+          },
+          {
+            "name": "future_dates",
+            "ok": true,
+            "detail": "start_date=2026-08-10"
+          },
+          {
+            "name": "budget_math",
+            "ok": true,
+            "detail": "23421+2342 vs 25763"
+          },
+          {
+            "name": "days_not_thin",
+            "ok": true,
+            "detail": "days below 3 activities: []"
+          },
+          {
+            "name": "mock_disclosed",
+            "ok": true,
+            "detail": ""
+          }
+        ],
+        "passed": true,
+        "over_budget": true,
+        "had_budget_limit": true,
+        "revisions": 0
+      },
+      {
+        "case": "unknown_destination",
+        "planner": "pipeline",
+        "latency_s": 69.6,
+        "checks": [
+          {
+            "name": "success",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "response_nontrivial",
+            "ok": true,
+            "detail": "len=5439"
+          },
+          {
+            "name": "has_flights",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "has_hotels",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "has_restaurants",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "has_budget",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "has_itinerary",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "markdown_sections",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "days_extracted",
+            "ok": true,
+            "detail": "got 3, want 3"
+          },
+          {
+            "name": "future_dates",
+            "ok": true,
+            "detail": "start_date=2026-08-10"
+          },
+          {
+            "name": "budget_math",
+            "ok": true,
+            "detail": "35757+3576 vs 39333"
+          },
+          {
+            "name": "mock_disclosed",
+            "ok": true,
+            "detail": ""
+          }
+        ],
+        "passed": true,
+        "over_budget": false,
+        "had_budget_limit": false,
+        "revisions": 0
+      },
+      {
+        "case": "nights_shorthand",
+        "planner": "pipeline",
+        "latency_s": 45.8,
+        "checks": [
+          {
+            "name": "success",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "response_nontrivial",
+            "ok": true,
+            "detail": "len=4074"
+          },
+          {
+            "name": "has_flights",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "has_hotels",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "has_restaurants",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "has_budget",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "has_itinerary",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "markdown_sections",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "travelers_extracted",
+            "ok": true,
+            "detail": "got 2"
+          },
+          {
+            "name": "future_dates",
+            "ok": true,
+            "detail": "start_date=2026-08-01"
+          },
+          {
+            "name": "budget_math",
+            "ok": true,
+            "detail": "40248+4025 vs 44273"
+          },
+          {
+            "name": "mock_disclosed",
+            "ok": true,
+            "detail": ""
+          }
+        ],
+        "passed": true,
+        "over_budget": false,
+        "had_budget_limit": false,
+        "revisions": 0
+      },
+      {
+        "case": "budget_shorthand_lakh",
+        "planner": "pipeline",
+        "latency_s": 63.4,
+        "checks": [
+          {
+            "name": "success",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "response_nontrivial",
+            "ok": true,
+            "detail": "len=4365"
+          },
+          {
+            "name": "has_flights",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "has_hotels",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "has_restaurants",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "has_budget",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "has_itinerary",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "markdown_sections",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "days_extracted",
+            "ok": true,
+            "detail": "got 6, want 6"
+          },
+          {
+            "name": "budget_limit_extracted",
+            "ok": true,
+            "detail": "got 150000.0"
+          },
+          {
+            "name": "future_dates",
+            "ok": true,
+            "detail": "start_date=2026-08-10"
+          },
+          {
+            "name": "budget_math",
+            "ok": true,
+            "detail": "43500+4350 vs 47850"
+          },
+          {
+            "name": "budget_respected",
+            "ok": true,
+            "detail": "total 47850 vs limit 150000"
+          },
+          {
+            "name": "no_duplicate_restaurants",
+            "ok": false,
+            "detail": "repeated: ['Coastal Kitchen Andaman (Demo)', 'The Spice Route Andaman (Demo)']"
+          },
+          {
+            "name": "mock_disclosed",
+            "ok": true,
+            "detail": ""
+          }
+        ],
+        "passed": false,
+        "over_budget": false,
+        "had_budget_limit": true,
+        "revisions": 0
+      }
+    ],
+    "graph": [
+      {
+        "case": "goa_budget_trip",
+        "planner": "graph",
+        "latency_s": 48.0,
+        "checks": [
+          {
+            "name": "success",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "response_nontrivial",
+            "ok": true,
+            "detail": "len=4574"
+          },
+          {
+            "name": "has_flights",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "has_hotels",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "has_restaurants",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "has_budget",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "has_itinerary",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "markdown_sections",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "days_extracted",
+            "ok": true,
+            "detail": "got 3, want 3"
+          },
+          {
+            "name": "budget_limit_extracted",
+            "ok": true,
+            "detail": "got 30000.0"
+          },
+          {
+            "name": "future_dates",
+            "ok": true,
+            "detail": "start_date=2026-08-10"
+          },
+          {
+            "name": "budget_math",
+            "ok": true,
+            "detail": "59691+5969 vs 65660"
+          },
+          {
+            "name": "budget_respected",
+            "ok": false,
+            "detail": "total 65660 vs limit 30000"
+          },
+          {
+            "name": "days_not_thin",
+            "ok": true,
+            "detail": "days below 3 activities: []"
+          },
+          {
+            "name": "no_duplicate_restaurants",
+            "ok": true,
+            "detail": "repeated: []"
+          },
+          {
+            "name": "mock_disclosed",
+            "ok": true,
+            "detail": ""
+          }
+        ],
+        "passed": false,
+        "over_budget": true,
+        "had_budget_limit": true,
+        "revisions": 0
+      },
+      {
+        "case": "jaipur_two_people",
+        "planner": "graph",
+        "latency_s": 62.5,
+        "checks": [
+          {
+            "name": "success",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "response_nontrivial",
+            "ok": true,
+            "detail": "len=5713"
+          },
+          {
+            "name": "has_flights",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "has_hotels",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "has_restaurants",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "has_budget",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "has_itinerary",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "markdown_sections",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "days_extracted",
+            "ok": true,
+            "detail": "got 5, want 5"
+          },
+          {
+            "name": "travelers_extracted",
+            "ok": true,
+            "detail": "got 2"
+          },
+          {
+            "name": "future_dates",
+            "ok": true,
+            "detail": "start_date=2026-12-01"
+          },
+          {
+            "name": "budget_math",
+            "ok": true,
+            "detail": "167000+16700 vs 183700"
+          },
+          {
+            "name": "days_not_thin",
+            "ok": true,
+            "detail": "days below 3 activities: []"
+          },
+          {
+            "name": "no_duplicate_restaurants",
+            "ok": false,
+            "detail": "repeated: ['Laxmi Mishthan Bhandar', 'Pizza Hut']"
+          },
+          {
+            "name": "mock_disclosed",
+            "ok": true,
+            "detail": ""
+          }
+        ],
+        "passed": false,
+        "over_budget": false,
+        "had_budget_limit": false,
+        "revisions": 0
+      },
+      {
+        "case": "kerala_no_details",
+        "planner": "graph",
+        "latency_s": 102.3,
+        "checks": [
+          {
+            "name": "success",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "response_nontrivial",
+            "ok": true,
+            "detail": "len=4756"
+          },
+          {
+            "name": "has_flights",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "has_hotels",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "has_restaurants",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "has_budget",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "has_itinerary",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "markdown_sections",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "future_dates",
+            "ok": true,
+            "detail": "start_date=2026-08-10"
+          },
+          {
+            "name": "budget_math",
+            "ok": true,
+            "detail": "23421+2342 vs 25763"
+          },
+          {
+            "name": "mock_disclosed",
+            "ok": true,
+            "detail": ""
+          }
+        ],
+        "passed": true,
+        "over_budget": false,
+        "had_budget_limit": false,
+        "revisions": 0
+      },
+      {
+        "case": "udaipur_group",
+        "planner": "graph",
+        "latency_s": 54.6,
+        "checks": [
+          {
+            "name": "success",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "response_nontrivial",
+            "ok": true,
+            "detail": "len=5012"
+          },
+          {
+            "name": "has_flights",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "has_hotels",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "has_restaurants",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "has_budget",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "has_itinerary",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "markdown_sections",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "days_extracted",
+            "ok": true,
+            "detail": "got 4, want 4"
+          },
+          {
+            "name": "travelers_extracted",
+            "ok": true,
+            "detail": "got 3"
+          },
+          {
+            "name": "future_dates",
+            "ok": true,
+            "detail": "start_date=2026-08-10"
+          },
+          {
+            "name": "budget_math",
+            "ok": true,
+            "detail": "96452+9645 vs 106097"
+          },
+          {
+            "name": "mock_disclosed",
+            "ok": true,
+            "detail": ""
+          }
+        ],
+        "passed": true,
+        "over_budget": false,
+        "had_budget_limit": false,
+        "revisions": 0
+      },
+      {
+        "case": "past_date_corrected",
+        "planner": "graph",
+        "latency_s": 51.7,
+        "checks": [
+          {
+            "name": "success",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "response_nontrivial",
+            "ok": true,
+            "detail": "len=5171"
+          },
+          {
+            "name": "has_flights",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "has_hotels",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "has_restaurants",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "has_budget",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "has_itinerary",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "markdown_sections",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "future_dates",
+            "ok": true,
+            "detail": "start_date=2026-08-10"
+          },
+          {
+            "name": "budget_math",
+            "ok": true,
+            "detail": "23916+2392 vs 26308"
+          },
+          {
+            "name": "mock_disclosed",
+            "ok": true,
+            "detail": ""
+          }
+        ],
+        "passed": true,
+        "over_budget": false,
+        "had_budget_limit": false,
+        "revisions": 0
+      },
+      {
+        "case": "greeting_no_plan",
+        "planner": "graph",
+        "latency_s": 3.5,
+        "checks": [
+          {
+            "name": "success",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "response_nontrivial",
+            "ok": true,
+            "detail": "len=204"
+          },
+          {
+            "name": "no_hallucinated_prices",
+            "ok": true,
+            "detail": "prices shown without any collected data"
+          }
+        ],
+        "passed": true,
+        "over_budget": false,
+        "had_budget_limit": false,
+        "revisions": 0
+      },
+      {
+        "case": "refinement_followup",
+        "planner": "graph",
+        "latency_s": 10.6,
+        "checks": [
+          {
+            "name": "success",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "response_nontrivial",
+            "ok": true,
+            "detail": "len=1029"
+          },
+          {
+            "name": "no_hallucinated_prices",
+            "ok": true,
+            "detail": "prices shown without any collected data"
+          }
+        ],
+        "passed": true,
+        "over_budget": true,
+        "had_budget_limit": true,
+        "revisions": 0
+      },
+      {
+        "case": "impossible_budget",
+        "planner": "graph",
+        "latency_s": 113.9,
+        "checks": [
+          {
+            "name": "success",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "response_nontrivial",
+            "ok": true,
+            "detail": "len=5934"
+          },
+          {
+            "name": "has_flights",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "has_hotels",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "has_restaurants",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "has_budget",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "has_itinerary",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "markdown_sections",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "budget_limit_extracted",
+            "ok": true,
+            "detail": "got 5000.0"
+          },
+          {
+            "name": "future_dates",
+            "ok": true,
+            "detail": "start_date=2026-08-10"
+          },
+          {
+            "name": "budget_math",
+            "ok": true,
+            "detail": "34500+3450 vs 37950"
+          },
+          {
+            "name": "over_budget_disclosed",
+            "ok": true,
+            "detail": "answer never says the trip is over budget"
+          },
+          {
+            "name": "mock_disclosed",
+            "ok": true,
+            "detail": ""
+          }
+        ],
+        "passed": true,
+        "over_budget": true,
+        "had_budget_limit": true,
+        "revisions": 0
+      },
+      {
+        "case": "tight_family_budget",
+        "planner": "graph",
+        "latency_s": 60.2,
+        "checks": [
+          {
+            "name": "success",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "response_nontrivial",
+            "ok": true,
+            "detail": "len=5111"
+          },
+          {
+            "name": "has_flights",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "has_hotels",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "has_restaurants",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "has_budget",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "has_itinerary",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "markdown_sections",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "travelers_extracted",
+            "ok": true,
+            "detail": "got 4"
+          },
+          {
+            "name": "budget_limit_extracted",
+            "ok": true,
+            "detail": "got 40000.0"
+          },
+          {
+            "name": "future_dates",
+            "ok": true,
+            "detail": "start_date=2026-08-10"
+          },
+          {
+            "name": "budget_math",
+            "ok": true,
+            "detail": "62496+6250 vs 68746"
+          },
+          {
+            "name": "budget_respected",
+            "ok": false,
+            "detail": "total 68746 vs limit 40000"
+          },
+          {
+            "name": "no_duplicate_restaurants",
+            "ok": true,
+            "detail": "repeated: []"
+          },
+          {
+            "name": "mock_disclosed",
+            "ok": true,
+            "detail": ""
+          }
+        ],
+        "passed": false,
+        "over_budget": true,
+        "had_budget_limit": true,
+        "revisions": 0
+      },
+      {
+        "case": "long_trip_clamped",
+        "planner": "graph",
+        "latency_s": 87.0,
+        "checks": [
+          {
+            "name": "success",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "response_nontrivial",
+            "ok": true,
+            "detail": "len=7581"
+          },
+          {
+            "name": "has_flights",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "has_hotels",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "has_restaurants",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "has_budget",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "has_itinerary",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "markdown_sections",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "days_clamped",
+            "ok": true,
+            "detail": "got 14, max 14"
+          },
+          {
+            "name": "future_dates",
+            "ok": true,
+            "detail": "start_date=2026-08-10"
+          },
+          {
+            "name": "budget_math",
+            "ok": true,
+            "detail": "255268+25527 vs 280795"
+          },
+          {
+            "name": "days_not_thin",
+            "ok": true,
+            "detail": "days below 3 activities: []"
+          },
+          {
+            "name": "mock_disclosed",
+            "ok": true,
+            "detail": ""
+          }
+        ],
+        "passed": true,
+        "over_budget": false,
+        "had_budget_limit": false,
+        "revisions": 0
+      },
+      {
+        "case": "week_in_goa_repeats",
+        "planner": "graph",
+        "latency_s": 47.4,
+        "checks": [
+          {
+            "name": "success",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "response_nontrivial",
+            "ok": true,
+            "detail": "len=5092"
+          },
+          {
+            "name": "has_flights",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "has_hotels",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "has_restaurants",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "has_budget",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "has_itinerary",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "markdown_sections",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "days_extracted",
+            "ok": true,
+            "detail": "got 7, want 7"
+          },
+          {
+            "name": "future_dates",
+            "ok": true,
+            "detail": "start_date=2026-07-31"
+          },
+          {
+            "name": "budget_math",
+            "ok": true,
+            "detail": "260938+26094 vs 287032"
+          },
+          {
+            "name": "days_not_thin",
+            "ok": true,
+            "detail": "days below 3 activities: []"
+          },
+          {
+            "name": "no_duplicate_restaurants",
+            "ok": false,
+            "detail": "repeated: ['Cecilia Beach Shack', \"Claudi's Corner\", 'Fishka Bar & Restaurant', \"Gloria's\", \"Martin's Corner\", 'Once upon a time']"
+          },
+          {
+            "name": "mock_disclosed",
+            "ok": true,
+            "detail": ""
+          }
+        ],
+        "passed": false,
+        "over_budget": false,
+        "had_budget_limit": false,
+        "revisions": 0
+      },
+      {
+        "case": "luxury_solo",
+        "planner": "graph",
+        "latency_s": 54.0,
+        "checks": [
+          {
+            "name": "success",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "response_nontrivial",
+            "ok": true,
+            "detail": "len=5056"
+          },
+          {
+            "name": "has_flights",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "has_hotels",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "has_restaurants",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "has_budget",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "has_itinerary",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "markdown_sections",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "travelers_extracted",
+            "ok": true,
+            "detail": "got 1"
+          },
+          {
+            "name": "budget_limit_extracted",
+            "ok": true,
+            "detail": "got 200000.0"
+          },
+          {
+            "name": "future_dates",
+            "ok": true,
+            "detail": "start_date=2026-08-10"
+          },
+          {
+            "name": "budget_math",
+            "ok": true,
+            "detail": "22926+2293 vs 25219"
+          },
+          {
+            "name": "budget_respected",
+            "ok": true,
+            "detail": "total 25219 vs limit 200000"
+          },
+          {
+            "name": "mock_disclosed",
+            "ok": true,
+            "detail": ""
+          }
+        ],
+        "passed": true,
+        "over_budget": false,
+        "had_budget_limit": true,
+        "revisions": 0
+      },
+      {
+        "case": "conflicting_interests",
+        "planner": "graph",
+        "latency_s": 66.7,
+        "checks": [
+          {
+            "name": "success",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "response_nontrivial",
+            "ok": true,
+            "detail": "len=4107"
+          },
+          {
+            "name": "has_flights",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "has_hotels",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "has_restaurants",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "has_budget",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "has_itinerary",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "markdown_sections",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "budget_limit_extracted",
+            "ok": true,
+            "detail": "got 25000.0"
+          },
+          {
+            "name": "future_dates",
+            "ok": true,
+            "detail": "start_date=2026-08-10"
+          },
+          {
+            "name": "budget_math",
+            "ok": true,
+            "detail": "23421+2342 vs 25763"
+          },
+          {
+            "name": "days_not_thin",
+            "ok": true,
+            "detail": "days below 3 activities: []"
+          },
+          {
+            "name": "mock_disclosed",
+            "ok": true,
+            "detail": ""
+          }
+        ],
+        "passed": true,
+        "over_budget": true,
+        "had_budget_limit": true,
+        "revisions": 0
+      },
+      {
+        "case": "unknown_destination",
+        "planner": "graph",
+        "latency_s": 52.3,
+        "checks": [
+          {
+            "name": "success",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "response_nontrivial",
+            "ok": true,
+            "detail": "len=5005"
+          },
+          {
+            "name": "has_flights",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "has_hotels",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "has_restaurants",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "has_budget",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "has_itinerary",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "markdown_sections",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "days_extracted",
+            "ok": true,
+            "detail": "got 3, want 3"
+          },
+          {
+            "name": "future_dates",
+            "ok": true,
+            "detail": "start_date=2026-08-10"
+          },
+          {
+            "name": "budget_math",
+            "ok": true,
+            "detail": "35757+3576 vs 39333"
+          },
+          {
+            "name": "mock_disclosed",
+            "ok": true,
+            "detail": ""
+          }
+        ],
+        "passed": true,
+        "over_budget": false,
+        "had_budget_limit": false,
+        "revisions": 0
+      },
+      {
+        "case": "nights_shorthand",
+        "planner": "graph",
+        "latency_s": 38.6,
+        "checks": [
+          {
+            "name": "success",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "response_nontrivial",
+            "ok": true,
+            "detail": "len=4044"
+          },
+          {
+            "name": "has_flights",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "has_hotels",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "has_restaurants",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "has_budget",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "has_itinerary",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "markdown_sections",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "travelers_extracted",
+            "ok": true,
+            "detail": "got 2"
+          },
+          {
+            "name": "future_dates",
+            "ok": true,
+            "detail": "start_date=2026-08-01"
+          },
+          {
+            "name": "budget_math",
+            "ok": true,
+            "detail": "40248+4025 vs 44273"
+          },
+          {
+            "name": "mock_disclosed",
+            "ok": true,
+            "detail": ""
+          }
+        ],
+        "passed": true,
+        "over_budget": false,
+        "had_budget_limit": false,
+        "revisions": 0
+      },
+      {
+        "case": "budget_shorthand_lakh",
+        "planner": "graph",
+        "latency_s": 84.0,
+        "checks": [
+          {
+            "name": "success",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "response_nontrivial",
+            "ok": true,
+            "detail": "len=5566"
+          },
+          {
+            "name": "has_flights",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "has_hotels",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "has_restaurants",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "has_budget",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "has_itinerary",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "markdown_sections",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "days_extracted",
+            "ok": true,
+            "detail": "got 6, want 6"
+          },
+          {
+            "name": "budget_limit_extracted",
+            "ok": true,
+            "detail": "got 150000.0"
+          },
+          {
+            "name": "future_dates",
+            "ok": true,
+            "detail": "start_date=2026-08-10"
+          },
+          {
+            "name": "budget_math",
+            "ok": true,
+            "detail": "43500+4350 vs 47850"
+          },
+          {
+            "name": "budget_respected",
+            "ok": true,
+            "detail": "total 47850 vs limit 150000"
+          },
+          {
+            "name": "no_duplicate_restaurants",
+            "ok": false,
+            "detail": "repeated: ['Coastal Kitchen Andaman (Demo)', 'The Spice Route Andaman (Demo)']"
+          },
+          {
+            "name": "mock_disclosed",
+            "ok": true,
+            "detail": ""
+          }
+        ],
+        "passed": false,
+        "over_budget": false,
+        "had_budget_limit": true,
+        "revisions": 0
+      }
+    ]
+  }
+}

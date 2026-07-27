@@ -5,14 +5,16 @@ import { ArrowDown, ArrowRight, Square } from 'lucide-react'
 import MessageBubble from './MessageBubble'
 import StreamingIndicator from './StreamingIndicator'
 import { sendMessageStreaming, generateSessionId, StreamEvent, cancelStreaming } from '@/lib/api-client'
-import { Message } from '@/lib/types'
+import { AgentTrace, IDLE_TRACE, Message } from '@/lib/types'
 import { IDLE_SOURCES, SourceKey, SourceMap } from '@/components/ui/SourceLedger'
+import AgentTimeline, { reduceTrace } from '@/components/agents/AgentTimeline'
 import Prose from './Prose'
 
 interface ChatInterfaceProps {
     onItineraryGenerated?: (data: any) => void
     onSourcesChange?: (sources: SourceMap) => void
     selectedModel?: string
+    selectedPlanner?: string
 }
 
 /**
@@ -48,12 +50,14 @@ export default function ChatInterface({
     onItineraryGenerated,
     onSourcesChange,
     selectedModel = 'qwen3:8b',
+    selectedPlanner,
 }: ChatInterfaceProps) {
     const [messages, setMessages] = useState<Message[]>([])
     const [input, setInput] = useState('')
     const [isLoading, setIsLoading] = useState(false)
     const [streamingStatus, setStreamingStatus] = useState('')
     const [streamingText, setStreamingText] = useState('')
+    const [trace, setTrace] = useState<AgentTrace>(IDLE_TRACE)
     const [sessionId, setSessionId] = useState<string>('')
     const [mounted, setMounted] = useState(false)
     const [pinnedToBottom, setPinnedToBottom] = useState(true)
@@ -130,6 +134,7 @@ export default function ChatInterface({
         setPinnedToBottom(true)
         setStreamingStatus('Reading your request')
         setStreamingText('')
+        setTrace(IDLE_TRACE)
         stoppedByUserRef.current = false
         stopMessageAddedRef.current = false
         abortControllerRef.current = new AbortController()
@@ -144,8 +149,17 @@ export default function ChatInterface({
 
         try {
             await sendMessageStreaming(
-                { message: input, session_id: sessionId, model: selectedModel },
+                {
+                    message: input,
+                    session_id: sessionId,
+                    model: selectedModel,
+                    planner: selectedPlanner,
+                },
                 (event: StreamEvent) => {
+                    // The multi-agent planner's own events; a no-op for the
+                    // pipeline planner, which never emits them.
+                    setTrace(prev => reduceTrace(prev, event))
+
                     if (event.type === 'status') {
                         const status = event.message || ''
                         setStreamingStatus(status)
@@ -306,6 +320,8 @@ export default function ChatInterface({
                 {messages.map((message, index) => (
                     <MessageBubble key={index} message={message} />
                 ))}
+
+                <AgentTimeline trace={trace} />
 
                 {isLoading && !streamingText && streamingStatus && (
                     <StreamingIndicator status={streamingStatus} />

@@ -5,7 +5,7 @@ from typing import Optional
 import json
 import asyncio
 
-from app.agents.travel_agent import TravelPlanningAgent
+from app.agents.travel_agent import create_planner
 from app.services.redis_service import redis_service
 from app.services.db_service import save_chat_message
 from app.models.schemas import ChatRequest
@@ -41,9 +41,13 @@ async def chat(request: ChatRequest):
                 return f"data: {json.dumps(payload)}\n\n"
 
             try:
-                # Initialize agent
+                # Initialize planner ("pipeline" or "graph"; see create_planner)
                 model = request.model or "qwen3:8b"
-                agent = TravelPlanningAgent(session_id=request.session_id, model_name=model)
+                agent = create_planner(
+                    session_id=request.session_id,
+                    model_name=model,
+                    planner=request.planner,
+                )
 
                 async for event in agent.plan_trip_events(request.message):
                     if cancel_event.is_set():
@@ -110,10 +114,14 @@ async def chat_sync(request: ChatRequest):
         )
     
     try:
-        # Initialize agent
+        # Initialize planner ("pipeline" or "graph"; see create_planner)
         model = request.model or "qwen3:8b"
-        agent = TravelPlanningAgent(session_id=request.session_id, model_name=model)
-        
+        agent = create_planner(
+            session_id=request.session_id,
+            model_name=model,
+            planner=request.planner,
+        )
+
         # Execute agent
         result = await agent.plan_trip(request.message)
         

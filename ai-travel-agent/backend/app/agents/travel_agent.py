@@ -22,6 +22,7 @@ import threading
 
 from app.config import settings
 from app.agents import ollama_native
+from app.agents.data import cheapest, is_mock, safe_load, section_count
 from app.agents.streaming import ThinkFilter, strip_think
 from app.agents.params import resolve_trip_params
 from app.tools import (
@@ -77,7 +78,14 @@ def get_llm(model_name: str = settings.model_name):
 
 
 class TravelPlanningAgent:
-    """Deterministic travel-planning pipeline with LLM extraction + synthesis."""
+    """Deterministic travel-planning pipeline with LLM extraction + synthesis.
+
+    The methods below without a leading underscore (extract_params,
+    stream_llm, history_text, store_plan, load_stored_plan,
+    save_conversation, has_mock_data) are also the reuse surface for the v2
+    graph planner in `app/agents/graph/` — both planners share one
+    implementation of history, Redis persistence and token streaming.
+    """
 
     def __init__(self, session_id: str, model_name: str = settings.model_name):
         self.session_id = session_id
@@ -95,7 +103,7 @@ class TravelPlanningAgent:
             logger.warning("Error loading conversation history: %s", e)
             return []
 
-    def _history_text(self) -> str:
+    def history_text(self) -> str:
         lines = []
         for msg in self._history()[-HISTORY_TURNS_IN_PROMPT:]:
             role = msg.get("role", "user").capitalize()
@@ -103,7 +111,7 @@ class TravelPlanningAgent:
             lines.append(f"{role}: {content}")
         return "\n".join(lines)
 
-    def _save_conversation(self, user_input: str, agent_output: str):
+    def save_conversation(self, user_input: str, agent_output: str):
         try:
             messages = self._history()
             messages.append({"role": "user", "content": user_input})
@@ -112,10 +120,10 @@ class TravelPlanningAgent:
         except Exception as e:
             logger.warning("Error saving conversation: %s", e)
 
-    def _load_stored_plan(self) -> Optional[Dict]:
+    def load_stored_plan(self) -> Optional[Dict]:
         return redis_service.get_cached(f"plan:{self.session_id}")
 
-    def _store_plan(self, collected_data: Dict):
+    def store_plan(self, collected_data: Dict):
         try:
             redis_service.set_cache(f"plan:{self.session_id}", collected_data, ttl=86400)
         except Exception as e:
@@ -125,8 +133,8 @@ class TravelPlanningAgent:
     # Step 1: parameter extraction
     # ------------------------------------------------------------------
 
-    async def _extract_params(self, user_query: str) -> Dict[str, Any]:
-        prompt = get_extraction_prompt(user_query, self._history_text())
+    async def extract_params(self, user_query: str) -> Dict[str, Any]:
+        prompt = get_extraction_prompt(user_query, self.history_text())
         raw = None
 
         # Prefer Ollama's native endpoint, which can switch reasoning off for
@@ -159,15 +167,6 @@ class TravelPlanningAgent:
     # Step 2: parallel data collection
     # ------------------------------------------------------------------
 
-    @staticmethod
-    def _safe_load(raw: Optional[str]) -> Optional[Dict]:
-        if not raw:
-            return None
-        try:
-            return json.loads(raw)
-        except (json.JSONDecodeError, TypeError):
-            return None
-
     async def _collect_data(self, params: Dict[str, Any]) -> AsyncIterator[Dict[str, Any]]:
         """Run the data tools; yields progress events, then a final
         {"type": "collected", "data": ...} event."""
@@ -186,7 +185,7 @@ class TravelPlanningAgent:
 
         async def _named(name, func, /, **kwargs):
             try:
-                return name, self._safe_load(await asyncio.to_thread(func, **kwargs))
+                return name, safe_load(await asyncio.to_thread(func, **kwargs))
             except Exception as e:
                 logger.warning("%s failed: %s", name, e)
                 return name, None
@@ -212,32 +211,19 @@ class TravelPlanningAgent:
         for future in asyncio.as_completed(tasks):
             name, data = await future
             collected[name] = data
-            count = len(data.get(name) or []) if isinstance(data, dict) else 0
-            source = data.get("source", "") if isinstance(data, dict) else ""
-            note = " (estimated)" if source.startswith("Mock") else ""
+            count = section_count(data, name)
+            note = " (estimated)" if is_mock(data) else ""
             yield {"type": "status", "message": f"{labels[name]}: found {count} options{note}"}
 
         # Budget from the real prices found
-        def _cheapest(section: Optional[Dict], list_key: str, price_key: str) -> float:
-            items = (section or {}).get(list_key) or []
-            prices = []
-            for item in items:
-                try:
-                    p = float(item.get(price_key, 0))
-                    if p > 0:
-                        prices.append(p)
-                except (ValueError, TypeError):
-                    continue
-            return min(prices) if prices else 0
-
-        collected["budget"] = self._safe_load(await asyncio.to_thread(
+        collected["budget"] = safe_load(await asyncio.to_thread(
             budget_calculator,
             destination=destination,
             days=params["days"],
             travelers=params["travelers"],
             budget_limit=params["budget_limit"],
-            flight_cost=_cheapest(collected["flights"], "flights", "price"),
-            hotel_cost_per_night=_cheapest(collected["hotels"], "hotels", "price_per_night"),
+            flight_cost=cheapest(collected["flights"], "flights", "price"),
+            hotel_cost_per_night=cheapest(collected["hotels"], "hotels", "price_per_night"),
         ))
 
         # Itinerary skeleton grounded in real places
@@ -247,7 +233,7 @@ class TravelPlanningAgent:
         attraction_names = [
             a.get("name") for a in ((collected["attractions"] or {}).get("attractions") or [])
         ]
-        collected["itinerary"] = self._safe_load(await asyncio.to_thread(
+        collected["itinerary"] = safe_load(await asyncio.to_thread(
             itinerary_builder,
             destination=destination,
             days=params["days"],
@@ -288,7 +274,7 @@ class TravelPlanningAgent:
             started = True
             yield item
 
-    async def _stream_llm(self, prompt: str) -> AsyncIterator[Dict[str, Any]]:
+    async def stream_llm(self, prompt: str) -> AsyncIterator[Dict[str, Any]]:
         """Stream an LLM response as token events, then a final 'text' event."""
         think_filter = ThinkFilter()
         full = ""
@@ -319,12 +305,11 @@ class TravelPlanningAgent:
         yield {"type": "text", "content": full.strip()}
 
     @staticmethod
-    def _has_mock_data(collected: Dict[str, Any]) -> bool:
-        for section in ("flights", "hotels", "restaurants", "attractions"):
-            data = collected.get(section)
-            if isinstance(data, dict) and str(data.get("source", "")).startswith("Mock"):
-                return True
-        return False
+    def has_mock_data(collected: Dict[str, Any]) -> bool:
+        return any(
+            is_mock(collected.get(section))
+            for section in ("flights", "hotels", "restaurants", "attractions")
+        )
 
     # ------------------------------------------------------------------
     # Public API
@@ -338,7 +323,7 @@ class TravelPlanningAgent:
         """
         try:
             yield {"type": "status", "message": "🔍 Understanding your travel request..."}
-            params = await self._extract_params(user_query)
+            params = await self.extract_params(user_query)
 
             if params["intent"] == "plan_trip" and params.get("destination"):
                 yield {"type": "status",
@@ -355,19 +340,19 @@ class TravelPlanningAgent:
                 prompt = get_synthesis_prompt(
                     user_query,
                     json.dumps(collected, ensure_ascii=False, default=str),
-                    self._has_mock_data(collected),
+                    self.has_mock_data(collected),
                 )
             else:
-                stored = self._load_stored_plan()
+                stored = self.load_stored_plan()
                 plan_context = json.dumps(stored, ensure_ascii=False, default=str)[:6000] if stored else ""
                 collected = stored or {
                     "flights": None, "hotels": None, "restaurants": None,
                     "budget": None, "itinerary": None, "search_results": [],
                 }
-                prompt = get_chat_prompt(user_query, self._history_text(), plan_context)
+                prompt = get_chat_prompt(user_query, self.history_text(), plan_context)
 
             final_text = ""
-            async for event in self._stream_llm(prompt):
+            async for event in self.stream_llm(prompt):
                 if event["type"] == "text":
                     final_text = event["content"]
                 else:
@@ -378,8 +363,8 @@ class TravelPlanningAgent:
                               "Please try again or provide more details.")
 
             if params["intent"] == "plan_trip" and params.get("destination"):
-                self._store_plan(collected)
-            self._save_conversation(user_query, final_text)
+                self.store_plan(collected)
+            self.save_conversation(user_query, final_text)
 
             yield {
                 "type": "result",
@@ -436,4 +421,32 @@ class TravelPlanningAgent:
 
 def create_agent(session_id: str, model_name: str = settings.model_name) -> TravelPlanningAgent:
     """Factory function to create a travel planning agent"""
+    return TravelPlanningAgent(session_id, model_name)
+
+
+PLANNERS = ("pipeline", "graph")
+
+
+def create_planner(
+    session_id: str,
+    model_name: str = settings.model_name,
+    planner: Optional[str] = None,
+):
+    """Build the planner named by `planner` (or the PLANNER setting).
+
+    "pipeline" is this module's v1 deterministic pipeline; "graph" is the v2
+    multi-agent orchestrator. Both expose the same interface —
+    plan_trip_events / plan_trip / sync_plan_trip — so callers do not care
+    which one they got. An unknown name falls back to the pipeline rather
+    than failing a user request.
+    """
+    name = (planner or settings.planner or "pipeline").strip().lower()
+
+    if name == "graph":
+        # Imported lazily: the graph package imports this module.
+        from app.agents.graph import GraphPlanner
+        return GraphPlanner(session_id, model_name)
+
+    if name != "pipeline":
+        logger.warning("Unknown planner %r; using 'pipeline'", name)
     return TravelPlanningAgent(session_id, model_name)

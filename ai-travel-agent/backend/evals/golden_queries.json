@@ -4,14 +4,19 @@
     "query": "Plan a 3-day trip to Goa from Mumbai under 30000 rupees",
     "expect_plan": true,
     "expect_days": 3,
-    "expect_budget_limit": 30000
+    "expect_budget_limit": 30000,
+    "expect_budget_respected": true,
+    "expect_min_activities_per_day": 3,
+    "expect_no_duplicate_restaurants": true
   },
   {
     "id": "jaipur_two_people",
     "query": "Plan 5 days in Jaipur in December for 2 people",
     "expect_plan": true,
     "expect_days": 5,
-    "expect_travelers": 2
+    "expect_travelers": 2,
+    "expect_min_activities_per_day": 3,
+    "expect_no_duplicate_restaurants": true
   },
   {
     "id": "kerala_no_details",
@@ -41,5 +46,72 @@
     "query": "Can you make that trip cheaper?",
     "expect_plan": false,
     "requires_prior": "goa_budget_trip"
+  },
+  {
+    "id": "impossible_budget",
+    "query": "Plan a 5-day trip to Maldives from Delhi under 5000 rupees",
+    "expect_plan": true,
+    "expect_budget_limit": 5000,
+    "expect_budget_disclosure": true
+  },
+  {
+    "id": "tight_family_budget",
+    "query": "Plan 4 days in Manali from Chandigarh for a family of 4 under 40000 rupees",
+    "expect_plan": true,
+    "expect_travelers": 4,
+    "expect_budget_limit": 40000,
+    "expect_budget_respected": true,
+    "expect_no_duplicate_restaurants": true
+  },
+  {
+    "id": "long_trip_clamped",
+    "query": "Plan a 20-day trip across Rajasthan from Delhi",
+    "expect_plan": true,
+    "expect_max_days": 14,
+    "expect_min_activities_per_day": 3
+  },
+  {
+    "id": "week_in_goa_repeats",
+    "query": "Plan 7 days in Goa from Bangalore, I love seafood",
+    "expect_plan": true,
+    "expect_days": 7,
+    "expect_min_activities_per_day": 3,
+    "expect_no_duplicate_restaurants": true
+  },
+  {
+    "id": "luxury_solo",
+    "query": "Plan a 3-day luxury trip to Udaipur for 1 person, budget 2 lakh",
+    "expect_plan": true,
+    "expect_travelers": 1,
+    "expect_budget_limit": 200000,
+    "expect_budget_respected": true
+  },
+  {
+    "id": "conflicting_interests",
+    "query": "Plan 3 days in Rishikesh with adventure sports and total relaxation, under 25000",
+    "expect_plan": true,
+    "expect_budget_limit": 25000,
+    "expect_min_activities_per_day": 3
+  },
+  {
+    "id": "unknown_destination",
+    "query": "Plan a 3-day trip to Wakanda",
+    "expect_plan": true,
+    "expect_days": 3
+  },
+  {
+    "id": "nights_shorthand",
+    "query": "2 nights in Goa from Mumbai next month for 2",
+    "expect_plan": true,
+    "expect_travelers": 2
+  },
+  {
+    "id": "budget_shorthand_lakh",
+    "query": "Honeymoon in Andaman for 6 days, budget 1.5 lakh, from Chennai",
+    "expect_plan": true,
+    "expect_days": 6,
+    "expect_budget_limit": 150000,
+    "expect_budget_respected": true,
+    "expect_no_duplicate_restaurants": true
   }
 ]

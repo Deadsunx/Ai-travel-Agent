@@ -11,6 +11,11 @@ class ChatRequest(BaseModel):
     session_id: str = Field(..., description="Session ID for conversation tracking")
     user_id: Optional[str] = Field(None, description="Optional user ID")
     model: Optional[str] = Field("qwen3:8b", description="Model to use for the chat")
+    planner: Optional[str] = Field(
+        None,
+        description="Planner to use: 'pipeline' (v1) or 'graph' (v2 multi-agent). "
+                    "Defaults to the PLANNER setting.",
+    )
 
 
 class ChatResponse(BaseModel):

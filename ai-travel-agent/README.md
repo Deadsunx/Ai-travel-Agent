@@ -4,7 +4,8 @@ An AI-powered travel planning agent that creates comprehensive, budget-conscious
 
 ## ✨ Features
 
-- **AI-Powered Chat**: Conversational interface powered by GPT-4
+- **AI-Powered Chat**: Conversational interface over local or cloud models
+- **Two planners**: a deterministic pipeline, or a multi-agent graph with a plan critic
 - **Real-Time Prices**: Live flight and hotel data from SerpAPI, RapidAPI
 - **Restaurant Recommendations**: Local dining spots via Foursquare
 - **Budget Management**: Smart budget calculator with recommendations
@@ -16,8 +17,8 @@ An AI-powered travel planning agent that creates comprehensive, budget-conscious
 ### Backend
 
 - **FastAPI** - High-performance Python web framework
-- **LangChain** - AI agent orchestration
-- **OpenAI GPT-4** - Language model
+- **LangGraph** - multi-agent orchestration (the `graph` planner)
+- **Ollama / Google Gemini** - local and cloud language models
 - **PostgreSQL** - Database
 - **Redis** - Caching & session management
 
@@ -30,7 +31,8 @@ An AI-powered travel planning agent that creates comprehensive, budget-conscious
 
 ### External APIs
 
-- **OpenAI API** - GPT-4 for natural language
+- **Ollama** - local models over an OpenAI-compatible endpoint
+- **Google Gemini** - optional cloud model
 - **SerpAPI** - Google search results
 - **RapidAPI** - Skyscanner flights, Booking.com hotels
 - **Foursquare** - Restaurant recommendations

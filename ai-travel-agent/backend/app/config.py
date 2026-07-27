@@ -35,6 +35,17 @@ class Settings(BaseSettings):
     
     # Agent Settings
     agent_timeout: int = 120  # seconds, per LLM call (extraction step)
+
+    # Planner selection: "pipeline" is the v1 deterministic pipeline,
+    # "graph" is the v2 multi-agent LangGraph orchestrator. Per-request
+    # override: ChatRequest.planner.
+    planner: str = "pipeline"
+    # Revision rounds the critic may request before the plan is delivered
+    # as-is. Local 8B models are slow, so 1 is the default; 2 is reasonable
+    # on Gemini. Hard-capped by MAX_REVISIONS_CEILING in the critic.
+    max_revisions: int = 1
+    # Model for the LLM critic pass; empty = use the request's main model.
+    critic_model: str = ""
     
     class Config:
         env_file = ".env"

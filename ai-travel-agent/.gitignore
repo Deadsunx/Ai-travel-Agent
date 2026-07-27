@@ -60,3 +60,5 @@ Thumbs.db
 Api keys.txt
 ai_travel_agent_prompt.md
 migration to local agent.md
+# Eval run artifacts; the kept baseline is baseline_*.json
+backend/evals/report_*.json

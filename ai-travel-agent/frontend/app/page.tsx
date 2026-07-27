@@ -17,9 +17,17 @@ const MODELS = [
     { value: 'gemini-flash-lite-latest', label: 'Gemini Flash Lite (cloud)' },
 ]
 
+// Which planner runs the request: the deterministic pipeline, or the
+// multi-agent graph whose desks and critic show up in the transcript.
+const PLANNERS = [
+    { value: 'pipeline', label: 'Pipeline' },
+    { value: 'graph', label: 'Multi-agent' },
+]
+
 export default function Home() {
     const [mode, setMode] = useState<'chat' | 'manual'>('chat')
     const [selectedModel, setSelectedModel] = useState<string>('qwen3.5:4b')
+    const [selectedPlanner, setSelectedPlanner] = useState<string>('pipeline')
     const [itinerary, setItinerary] = useState<any>(null)
     const [sources, setSources] = useState<SourceMap>(IDLE_SOURCES)
     const { theme, toggleTheme } = useTheme()
@@ -47,6 +55,20 @@ export default function Home() {
                             {MODELS.map((m) => (
                                 <option key={m.value} value={m.value} className="bg-card text-ink">
                                     {m.label}
+                                </option>
+                            ))}
+                        </select>
+
+                        <label className="sr-only" htmlFor="planner">Planner</label>
+                        <select
+                            id="planner"
+                            value={selectedPlanner}
+                            onChange={(e) => setSelectedPlanner(e.target.value)}
+                            className="data bg-transparent border border-rule rounded-stub text-[0.6875rem] uppercase tracking-[0.1em] text-muted px-2.5 py-2 hover:text-ink focus:outline-none focus-visible:outline-2"
+                        >
+                            {PLANNERS.map((p) => (
+                                <option key={p.value} value={p.value} className="bg-card text-ink">
+                                    {p.label}
                                 </option>
                             ))}
                         </select>
@@ -111,6 +133,7 @@ export default function Home() {
                                 onItineraryGenerated={setItinerary}
                                 onSourcesChange={setSources}
                                 selectedModel={selectedModel}
+                                selectedPlanner={selectedPlanner}
                             />
                         ) : (
                             <ManualPlanningForm
