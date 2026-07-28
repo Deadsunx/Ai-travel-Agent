@@ -1,0 +1,36 @@
+name: tests
+
+# The suite is offline by design: external APIs are stubbed and both planners
+# fall back to mock data, so no keys and no running services are needed here.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ai-travel-agent/backend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          # The version the project targets. Newer runtimes are not used here
+          # because psycopg2-binary has no wheel for them yet and falls back to
+          # a source build that needs libpq.
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: ai-travel-agent/backend/requirements-dev.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+
+      - name: Run tests
+        run: pytest -q

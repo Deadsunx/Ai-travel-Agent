@@ -10,6 +10,10 @@ import requests
 from app.services.redis_service import redis_service
 from app.config import settings
 
+#: Paid activities the itinerary schedules per day (a morning and an
+#: afternoon stop). Shared by the budget and the day plan so the two agree.
+ACTIVITIES_PER_DAY = 2
+
 
 def _extract_json_payload(input_str: str) -> Optional[dict]:
     """Best-effort parse of model-produced tool input."""
@@ -171,8 +175,12 @@ def hotel_search(city: str, check_in: str = None, check_out: str = None, guests:
     return json.dumps(result, ensure_ascii=False)
 
 
-def restaurant_finder(city: str, cuisine: str = None, budget: str = "medium") -> str:
+def restaurant_finder(city: str, cuisine: str = None, budget: str = "medium",
+                      limit: int = 8) -> str:
     """Find restaurants via OpenStreetMap, falling back to mock data.
+
+    `limit` lets a caller ask for what the trip actually needs — a week needs
+    fourteen dinners and lunches, and eight results guarantee repeats.
 
     Foursquare is no longer consulted: its v3 API was retired on 2026-05-15 and
     now returns 410, so calling it only cost a timeout before the fallback.
@@ -180,13 +188,15 @@ def restaurant_finder(city: str, cuisine: str = None, budget: str = "medium") ->
     from .places_api import search_restaurants_osm
     from .real_api import get_mock_restaurants
 
-    cache_key = f"restaurants:{_norm_key_part(city)}:{_norm_key_part(cuisine)}:{_norm_key_part(budget)}"
+    limit = min(max(_coerce_int(limit, 8), 1), 30)
+    cache_key = (f"restaurants:{_norm_key_part(city)}:{_norm_key_part(cuisine)}"
+                 f":{_norm_key_part(budget)}:{limit}")
 
     cached = _get_cached(cache_key)
     if cached:
         return json.dumps(cached)
 
-    result = search_restaurants_osm(city, cuisine, budget)
+    result = search_restaurants_osm(city, cuisine, budget, limit=limit)
 
     if not result:
         result = get_mock_restaurants(city, cuisine, budget, reason="No OSM match")
@@ -223,8 +233,16 @@ def budget_calculator(
     budget_limit: float = 0,
     flight_cost: float = 0,
     hotel_cost_per_night: float = 0,
+    paid_activities: Optional[int] = None,
 ) -> str:
-    """Calculate estimated trip budget using real prices when available."""
+    """Calculate estimated trip budget using real prices when available.
+
+    `paid_activities` is how many paid activities the trip schedules; it
+    defaults to two a day, which is what the itinerary builder lays out. A
+    caller that has cut activities to fit a budget passes the reduced count
+    and sees the total fall — without it, "drop some activities" would be
+    advice the arithmetic ignores.
+    """
 
     # Budget multipliers for estimated categories
     multipliers = {
@@ -252,8 +270,13 @@ def budget_calculator(
     transport_total = transport_daily * days
 
     # --- Activities (estimated) ---
-    activities_daily = int(1200 * mult)
-    activities_total = activities_daily * days
+    # Priced per activity rather than per day, so a reduced count actually
+    # costs less. Two a day at this rate reproduces the old per-day figure.
+    activity_unit_cost = int(600 * mult)
+    if paid_activities is None:
+        paid_activities = days * ACTIVITIES_PER_DAY
+    paid_activities = max(_coerce_int(paid_activities, days * ACTIVITIES_PER_DAY), 0)
+    activities_total = activity_unit_cost * paid_activities
 
     # --- Miscellaneous (estimated) ---
     misc_daily = int(500 * mult)
@@ -337,20 +360,41 @@ def itinerary_builder(
     interests: str = None,
     restaurants: Optional[list] = None,
     attractions: Optional[list] = None,
+    daily_places: Optional[list] = None,
 ) -> str:
     """Build a day-by-day itinerary, grounded in real places when provided.
 
     `restaurants` and `attractions` are optional lists of names (strings) from
     earlier tool results; they are rotated across the days so each slot
     references a real place instead of a generic placeholder.
+
+    `daily_places` overrides that rotation with an explicit assignment made
+    by a caller that knows more — which restaurants have not been used yet,
+    which sights are near each other. One entry per day:
+
+        {"lunch": name | None, "dinner": name | None, "sights": [name, ...]}
+
+    Any slot left empty falls back to the rotation, so a partial assignment
+    is safe and callers that pass nothing get the original behaviour.
     """
     restaurants = [r for r in (restaurants or []) if r]
     attractions = [a for a in (attractions or []) if a]
+    daily_places = daily_places or []
 
     def _pick(items: list, index: int, fallback: str) -> str:
         if not items:
             return fallback
         return items[index % len(items)]
+
+    def _assigned(day_index: int, key: str) -> Optional[str]:
+        if day_index >= len(daily_places):
+            return None
+        return (daily_places[day_index] or {}).get(key)
+
+    def _assigned_sight(day_index: int, position: int) -> Optional[str]:
+        sights = (daily_places[day_index] or {}).get("sights") or [] \
+            if day_index < len(daily_places) else []
+        return sights[position] if position < len(sights) else None
 
     itinerary = {
         "destination": destination,
@@ -360,10 +404,15 @@ def itinerary_builder(
     }
 
     for day in range(1, days + 1):
-        lunch_place = _pick(restaurants, (day - 1) * 2, "a well-rated local restaurant")
-        dinner_place = _pick(restaurants, (day - 1) * 2 + 1, "a popular dinner spot")
-        morning_sight = _pick(attractions, (day - 1) * 2, f"{destination}'s top sights")
-        afternoon_sight = _pick(attractions, (day - 1) * 2 + 1, "a local cultural experience")
+        index = day - 1
+        lunch_place = (_assigned(index, "lunch")
+                       or _pick(restaurants, index * 2, "a well-rated local restaurant"))
+        dinner_place = (_assigned(index, "dinner")
+                        or _pick(restaurants, index * 2 + 1, "a popular dinner spot"))
+        morning_sight = (_assigned_sight(index, 0)
+                         or _pick(attractions, index * 2, f"{destination}'s top sights"))
+        afternoon_sight = (_assigned_sight(index, 1)
+                           or _pick(attractions, index * 2 + 1, "a local cultural experience"))
 
         day_plan = {
             "day": day,

@@ -61,6 +61,37 @@ class Itinerary(Base):
     user = relationship("User", back_populates="itineraries")
 
 
+class PlanRun(Base):
+    """One planning run, kept so the planners can be compared over time.
+
+    A demo shows that the critic fired once; this table is what answers how
+    often it fires, what it asks for, and whether the revision helped —
+    across every run rather than the one on screen.
+    """
+    __tablename__ = "plan_runs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    run_id = Column(String(64), unique=True, index=True)
+    session_id = Column(String(255), index=True)
+
+    planner = Column(String(16), index=True)      # 'pipeline' | 'graph'
+    model_name = Column(String(64))
+
+    params = Column(JSON)         # resolved trip parameters
+    choices = Column(JSON)        # what each specialist picked, and why
+    issues = Column(JSON)         # what the critic still objected to
+    revisions = Column(Integer, default=0)
+    verdict = Column(String(16))  # 'pass' | 'give_up' | None for the pipeline
+
+    budget_total = Column(Float)
+    budget_limit = Column(Float)
+    within_budget = Column(Boolean)
+
+    latency_ms = Column(Integer)
+    succeeded = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+
+
 class SearchCache(Base):
     """Search cache model for long-term caching beyond Redis TTL"""
     __tablename__ = "search_cache"

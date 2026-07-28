@@ -5,10 +5,11 @@ python-multipart==0.0.6
 pydantic>=2.7.4,<3.0
 pydantic-settings>=2.1.0,<3.0
 
-# LLM clients (the agent is a deterministic pipeline; only chat-model
-# bindings are needed — no langchain agents/memory/community)
+# LLM clients (only chat-model bindings are needed — no langchain
+# agents/memory/community; orchestration is LangGraph, see app/agents/graph/)
 langchain-openai>=0.3.0,<0.4
 langchain-google-genai>=2.0.0,<3.0
+langgraph>=0.2.60,<0.3
 
 # Database
 sqlalchemy==2.0.25

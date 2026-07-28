@@ -216,6 +216,9 @@ def search_restaurants_osm(location: str, cuisine: str = None, budget: str = "mo
             "cuisine": _format_cuisine(tags.get("cuisine")),
             "address": _address(tags),
             "website": _clean(tags.get("website")),
+            # Carried through so a planner can group a day's stops by area.
+            "lat": element.get("lat"),
+            "lon": element.get("lon"),
             # OSM has no ratings or price levels — report nothing rather than
             # inventing a number.
             "rating": 0,
@@ -274,6 +277,9 @@ def search_attractions_osm(location: str, limit: int = 10) -> Optional[Dict]:
         attractions.append({
             "name": name,
             "kind": tags.get("tourism") or tags.get("historic") or tags.get("natural") or "sight",
+            # Carried through so a planner can group a day's stops by area.
+            "lat": element.get("lat"),
+            "lon": element.get("lon"),
         })
         if len(attractions) >= limit:
             break

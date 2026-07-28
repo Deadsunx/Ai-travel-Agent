@@ -50,14 +50,28 @@ New user message: {user_query}
 JSON:"""
 
 
-def get_synthesis_prompt(user_query: str, collected_data_json: str, has_mock_data: bool) -> str:
-    """Prompt for the final answer, grounded in collected tool data."""
+def get_synthesis_prompt(user_query: str, collected_data_json: str, has_mock_data: bool,
+                         issues: list = None) -> str:
+    """Prompt for the final answer, grounded in collected tool data.
+
+    `issues` are the problems the plan still has after any revision rounds
+    (the graph planner's critic supplies them; the pipeline passes none).
+    They are stated as instructions rather than left in the data, because a
+    known problem that the answer glosses over is worse than no check at all.
+    """
     mock_note = (
         "\n- IMPORTANT: Some data below is ESTIMATED/DEMO data (marked with source 'Mock Data'). "
         "Clearly tell the user those prices are estimates, not live prices."
         if has_mock_data
         else ""
     )
+
+    if issues:
+        lines = "\n".join(f"  - {issue.get('message', '')}" for issue in issues)
+        mock_note += (
+            "\n- These problems remain in the plan and MUST be stated plainly in the "
+            f"Trip Summary, not hidden:\n{lines}"
+        )
     return f"""You are an expert travel planner. Current date: {_today()}.
 
 Write the final trip plan for the user, using ONLY the data provided below. Do not invent prices, hotel names, or restaurant names that are not in the data.{mock_note}

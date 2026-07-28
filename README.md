@@ -12,7 +12,10 @@ The application is built using a modern, scalable stack:
 
 - **Frontend**: Next.js 14 (App Router) with TypeScript and Tailwind CSS (Shadcn UI).
 - **Backend**: FastAPI (Python 3.11+) orchestration.
-- **AI Agent Layer**: LangChain-powered ReAct agents using OpenAI GPT-4.
+- **AI Agent Layer**: two selectable planners over the same tools — a deterministic
+  pipeline (default) and a LangGraph multi-agent orchestrator (see
+  [MULTI_AGENT_SPEC.md](MULTI_AGENT_SPEC.md)).
+- **Models**: local Ollama models (Qwen3, Gemma) with Google Gemini as a cloud option.
 - **Database**: PostgreSQL for persistent storage of itineraries and chat sessions.
 - **Caching**: Redis for API response caching and rate limiting.
 - **Containerization**: Fully orchestrated using Docker and Docker Compose.
@@ -25,11 +28,29 @@ The system uses a **Hybrid Integration** model to ensure reliability while provi
 |------|--------|---------|--------|
 | **Flight Search** | SerpAPI (Google Flights) | Real-time flight pricing and links | ✅ Integrated with Mock Fallback |
 | **Hotel Search** | RapidAPI (Booking.com) | Real-time accommodation search | ✅ Integrated with Mock Fallback |
-| **Places Search** | Foursquare API | Local attraction and dining info | ✅ Integrated with Mock Fallback |
+| **Places Search** | OpenStreetMap (Overpass) | Eateries and sights, with coordinates | ✅ Integrated with Mock Fallback |
 | **General Search**| Google Search | Information on activities and tips | ✅ Integrated |
 
 > [!NOTE]
 > The "Mock Fallback" system ensures the agent remains functional even if API keys are missing or rate limits are reached, by providing realistic estimated data.
+
+### 🧭 Planners
+
+| Planner | Selected by | What it does |
+|---------|-------------|--------------|
+| `graph` (default) | `PLANNER=graph`, or the **Multi-agent** switch in the header | The work runs as a LangGraph state machine: a supervisor sets budget-derived constraints, three specialist desks run in parallel and explain their picks, and a critic can send the plan back for a bounded revision round. |
+| `pipeline` | `PLANNER=pipeline` | Extract parameters → fetch all sources in parallel → cost the trip → write the answer. One pass, no selection, no critic — about 17% faster. |
+
+The graph is the default because it wins the golden-query comparison **15/16
+to 13/16**: it fixes both duplicate-restaurant failures and holds a plan to
+its budget. `PLANNER=pipeline` buys the latency back.
+
+Either planner can be picked per request (`"planner"` in the chat payload), so the
+two can be compared on the same query:
+
+```bash
+docker compose exec backend python -m evals.run_evals --compare
+```
 
 ### ✨ Key Features Implemented
 
@@ -60,7 +81,8 @@ AI Travel Agent PBL ANTGVT/
 ### Prerequisites
 
 - Docker & Docker Compose
-- API Keys for OpenAI, SerpAPI, RapidAPI, and Foursquare
+- Ollama running on the host (or a Google Gemini key), plus SerpAPI and RapidAPI keys.
+  OpenStreetMap needs no key; every source has a mock fallback, so the app runs without any of them.
 
 ### Quick Run
 

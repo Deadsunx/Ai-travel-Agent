@@ -5,6 +5,53 @@ export interface Message {
     data?: any
 }
 
+// ---- Multi-agent planner trace ------------------------------------------
+// Populated from the agent_start / agent_result / critique / revision events
+// the graph planner streams; empty for the pipeline planner.
+
+export type AgentName = 'flight' | 'hotel' | 'local'
+export type LaneState = 'idle' | 'dispatched' | 'reported'
+
+export interface AgentChoice {
+    name: string
+    rationale: string
+}
+
+export interface AgentLane {
+    state: LaneState
+    count: number
+    estimated: boolean
+    /** What this desk picked, once it picks rather than just fetches. */
+    choice?: AgentChoice
+}
+
+export interface PlannerIssue {
+    severity: 'blocker' | 'warning' | 'note'
+    category: string
+    message: string
+    action?: string | null
+}
+
+export interface AgentTrace {
+    lanes: Record<AgentName, AgentLane>
+    constraints: Record<string, any> | null
+    verdict: 'pass' | 'revise' | 'give_up' | null
+    issues: PlannerIssue[]
+    rounds: { round: number; actions: string[] }[]
+}
+
+export const IDLE_TRACE: AgentTrace = {
+    lanes: {
+        flight: { state: 'idle', count: 0, estimated: false },
+        hotel: { state: 'idle', count: 0, estimated: false },
+        local: { state: 'idle', count: 0, estimated: false },
+    },
+    constraints: null,
+    verdict: null,
+    issues: [],
+    rounds: [],
+}
+
 export interface Activity {
     time: string
     activity: string
