@@ -12,6 +12,9 @@ from app.models.schemas import ChatRequest
 
 router = APIRouter()
 
+# In-memory cancellation flags keyed by session id.
+_cancel_events: dict[str, asyncio.Event] = {}
+
 
 @router.post("/")
 async def chat(request: ChatRequest):
@@ -28,56 +31,47 @@ async def chat(request: ChatRequest):
         )
     
     try:
-        # Stream response
+        # Stream response — events come straight from the agent pipeline:
+        # real per-tool progress and real LLM tokens (no post-hoc re-chunking).
         async def generate():
+            cancel_event = _cancel_events.setdefault(request.session_id, asyncio.Event())
+            cancel_event.clear()
+
+            def sse(payload: dict) -> str:
+                return f"data: {json.dumps(payload)}\n\n"
+
             try:
-                # Send initial status
-                yield f"data: {json.dumps({'type': 'status', 'message': '🔍 Analyzing your travel request...'})}\n\n"
-                await asyncio.sleep(0.3)
-                
                 # Initialize agent
                 model = request.model or "qwen3:8b"
                 agent = TravelPlanningAgent(session_id=request.session_id, model_name=model)
-                
-                yield f"data: {json.dumps({'type': 'status', 'message': '🤖 AI Agent activated, planning your trip...'})}\n\n"
-                await asyncio.sleep(0.3)
-                
-                # Execute agent
-                result = await agent.plan_trip(request.message)
-                
-                if result.get("success"):
-                    # Stream progress updates
-                    yield f"data: {json.dumps({'type': 'status', 'message': '✅ Itinerary generated successfully!'})}\n\n"
-                    await asyncio.sleep(0.2)
-                    
-                    # Stream the response text word-by-word for perceived speed
-                    response_text = result.get("response", "")
-                    if response_text:
-                        words = response_text.split()
-                        chunk_size = 3  # Send 3 words at a time
-                        for i in range(0, len(words), chunk_size):
-                            chunk = " ".join(words[i:i + chunk_size])
-                            yield f"data: {json.dumps({'type': 'token', 'content': chunk + ' '})}\n\n"
-                            await asyncio.sleep(0.02)  # Small delay between chunks
-                    
-                    # Send final structured result (flights, hotels, etc.)
-                    yield f"data: {json.dumps({'type': 'result', 'data': result})}\n\n"
-                    
-                    # Save to database
-                    try:
-                        save_chat_message(
-                            session_id=request.session_id,
-                            user_message=request.message,
-                            agent_response=result
-                        )
-                    except Exception as e:
-                        print(f"Error saving chat: {e}")
-                else:
-                    yield f"data: {json.dumps({'type': 'error', 'message': result.get('error', 'Unknown error occurred')})}\n\n"
-                    
+
+                async for event in agent.plan_trip_events(request.message):
+                    if cancel_event.is_set():
+                        yield sse({'type': 'cancelled', 'message': 'Generation stopped by user.'})
+                        return
+
+                    if event["type"] == "result":
+                        result = event["data"]
+                        if result.get("success"):
+                            yield sse(event)
+                            # Save to database
+                            try:
+                                save_chat_message(
+                                    session_id=request.session_id,
+                                    user_message=request.message,
+                                    agent_response=result
+                                )
+                            except Exception as e:
+                                print(f"Error saving chat: {e}")
+                        else:
+                            yield sse({'type': 'error', 'message': result.get('error', 'Unknown error occurred')})
+                    else:
+                        yield sse(event)
+
             except Exception as e:
-                error_msg = f"Error: {str(e)}"
-                yield f"data: {json.dumps({'type': 'error', 'message': error_msg})}\n\n"
+                yield sse({'type': 'error', 'message': f"Error: {str(e)}"})
+            finally:
+                _cancel_events.pop(request.session_id, None)
         
         return StreamingResponse(
             generate(),
@@ -91,6 +85,14 @@ async def chat(request: ChatRequest):
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/cancel/{session_id}")
+async def cancel_chat(session_id: str):
+    """Cancel an in-progress chat generation for a session."""
+    cancel_event = _cancel_events.setdefault(session_id, asyncio.Event())
+    cancel_event.set()
+    return {"success": True, "message": "Cancellation requested"}
 
 
 @router.post("/sync")

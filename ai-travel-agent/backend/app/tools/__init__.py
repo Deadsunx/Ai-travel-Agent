@@ -3,11 +3,69 @@
 from pydantic import BaseModel, Field
 from typing import Optional, Any, Callable
 import json
+import ast
+from datetime import datetime
 import requests
-from langchain.tools import Tool
 
 from app.services.redis_service import redis_service
 from app.config import settings
+
+
+def _extract_json_payload(input_str: str) -> Optional[dict]:
+    """Best-effort parse of model-produced tool input."""
+    if not input_str:
+        return None
+
+    text = input_str.strip()
+    if text.startswith("```"):
+        text = text.replace("```json", "").replace("```", "").strip()
+
+    for candidate in (text, text[text.find("{"):text.rfind("}") + 1] if "{" in text and "}" in text else ""):
+        if not candidate:
+            continue
+        try:
+            data = json.loads(candidate)
+            if isinstance(data, dict):
+                return data
+        except Exception:
+            pass
+        try:
+            data = ast.literal_eval(candidate)
+            if isinstance(data, dict):
+                return data
+        except Exception:
+            pass
+    return None
+
+
+def _normalize_date(raw_date: Any) -> Optional[str]:
+    if raw_date is None:
+        return None
+    if not isinstance(raw_date, str):
+        return None
+    value = raw_date.strip()
+    if not value:
+        return None
+
+    known_formats = ["%Y-%m-%d", "%d/%m/%Y", "%d/%m/%y", "%m/%d/%Y", "%m/%d/%y"]
+    for fmt in known_formats:
+        try:
+            return datetime.strptime(value, fmt).strftime("%Y-%m-%d")
+        except ValueError:
+            continue
+    return value
+
+
+def _coerce_int(value: Any, default: int) -> int:
+    try:
+        return int(value)
+    except Exception:
+        return default
+
+
+def _norm_key_part(value: Any) -> str:
+    """Normalize a cache-key component so 'Goa', ' goa ' and 'GOA' share one entry."""
+    return str(value).strip().lower().replace(" ", "_")
 
 
 def _get_cached(cache_key: str) -> Optional[dict]:
@@ -28,7 +86,7 @@ def _set_cache(cache_key: str, data: Any, ttl: int = 3600) -> bool:
 def google_search(query: str, num_results: int = 5) -> str:
     """Search the web using SerpAPI"""
     num_results = min(max(1, num_results), 10)
-    cache_key = f"google_search:{query}:{num_results}"
+    cache_key = f"google_search:{_norm_key_part(query)}:{num_results}"
     
     cached = _get_cached(cache_key)
     if cached:
@@ -71,7 +129,7 @@ def flight_search(origin: str, destination: str, date: str = None, return_date: 
     """Search for real flights using SerpAPI"""
     from .real_api import search_flights_serpapi, get_mock_flights
     
-    cache_key = f"flights:{origin}:{destination}:{date}:{return_date}:{passengers}"
+    cache_key = f"flights:{_norm_key_part(origin)}:{_norm_key_part(destination)}:{date}:{return_date}:{passengers}"
     
     # Check cache first
     cached = _get_cached(cache_key)
@@ -94,7 +152,7 @@ def hotel_search(city: str, check_in: str = None, check_out: str = None, guests:
     """Search for hotels using RapidAPI (with fallback to mock data)"""
     from .real_api import search_hotels_rapidapi, get_mock_hotels
     
-    cache_key = f"hotels:{city}:{check_in}:{check_out}:{guests}"
+    cache_key = f"hotels:{_norm_key_part(city)}:{check_in}:{check_out}:{guests}"
     
     # Check cache first
     cached = _get_cached(cache_key)
@@ -114,189 +172,219 @@ def hotel_search(city: str, check_in: str = None, check_out: str = None, guests:
 
 
 def restaurant_finder(city: str, cuisine: str = None, budget: str = "medium") -> str:
-    """Find restaurants using Foursquare (with fallback to mock data)"""
-    from .real_api import search_restaurants_foursquare, get_mock_restaurants
-    
-    cache_key = f"restaurants:{city}:{cuisine}:{budget}"
-    
-    # Check cache first
+    """Find restaurants via OpenStreetMap, falling back to mock data.
+
+    Foursquare is no longer consulted: its v3 API was retired on 2026-05-15 and
+    now returns 410, so calling it only cost a timeout before the fallback.
+    """
+    from .places_api import search_restaurants_osm
+    from .real_api import get_mock_restaurants
+
+    cache_key = f"restaurants:{_norm_key_part(city)}:{_norm_key_part(cuisine)}:{_norm_key_part(budget)}"
+
     cached = _get_cached(cache_key)
     if cached:
         return json.dumps(cached)
-    
-    # Try real API first
-    result = search_restaurants_foursquare(city, cuisine, budget)
-    
-    # Fallback to mock data if API fails
+
+    result = search_restaurants_osm(city, cuisine, budget)
+
     if not result:
-        result = get_mock_restaurants(city, cuisine, budget)
-    
-    # Cache the result
-    _set_cache(cache_key, result, ttl=3600)
-    return json.dumps(result, ensure_ascii=False)
-    
-    result = {
-        "city": city,
-        "cuisine_filter": cuisine or "All",
-        "budget": budget,
-        "restaurants": restaurants
-    }
-    
-    _set_cache(cache_key, result, ttl=1800)
+        result = get_mock_restaurants(city, cuisine, budget, reason="No OSM match")
+
+    # Real hits are cached for a day (OSM barely changes and public Overpass is
+    # slow when busy); estimates expire quickly so the next try can do better.
+    ttl = 86400 if "Real Data" in result.get("source", "") else 600
+    _set_cache(cache_key, result, ttl=ttl)
     return json.dumps(result, ensure_ascii=False)
 
 
-def budget_calculator(destination: str, days: int = 3, travelers: int = 2, budget_level: str = "medium") -> str:
-    """Calculate estimated trip budget"""
-    
-    # Budget multipliers
+def attraction_finder(city: str) -> str:
+    """Find real sights to build the day plan around."""
+    from .places_api import search_attractions_osm, get_mock_attractions
+
+    cache_key = f"attractions:{_norm_key_part(city)}"
+
+    cached = _get_cached(cache_key)
+    if cached:
+        return json.dumps(cached)
+
+    result = search_attractions_osm(city) or get_mock_attractions(city, reason="No OSM match")
+
+    ttl = 604800 if "Real Data" in result.get("source", "") else 600
+    _set_cache(cache_key, result, ttl=ttl)
+    return json.dumps(result, ensure_ascii=False)
+
+
+def budget_calculator(
+    destination: str,
+    days: int = 3,
+    travelers: int = 1,
+    budget_level: str = "medium",
+    budget_limit: float = 0,
+    flight_cost: float = 0,
+    hotel_cost_per_night: float = 0,
+) -> str:
+    """Calculate estimated trip budget using real prices when available."""
+
+    # Budget multipliers for estimated categories
     multipliers = {
         "budget": 0.6,
         "medium": 1.0,
-        "luxury": 2.5
+        "luxury": 2.5,
     }
     mult = multipliers.get(budget_level, 1.0)
-    
-    # Base daily costs (INR)
-    base_costs = {
-        "accommodation": 3000,
-        "food": 1500,
-        "transport": 800,
-        "activities": 1200,
-        "miscellaneous": 500
-    }
-    
-    daily_costs = {k: int(v * mult) for k, v in base_costs.items()}
-    daily_total = sum(daily_costs.values())
-    
+
+    # --- Flights ---
+    flights_total = float(flight_cost) * travelers if flight_cost else 0
+
+    # --- Accommodation ---
+    if hotel_cost_per_night and float(hotel_cost_per_night) > 0:
+        accommodation_total = float(hotel_cost_per_night) * days
+    else:
+        accommodation_total = int(3000 * mult) * days  # estimate per night
+
+    # --- Food (estimated) ---
+    food_daily = int(1500 * mult)
+    food_total = food_daily * days * travelers
+
+    # --- Transport (local, estimated) ---
+    transport_daily = int(800 * mult)
+    transport_total = transport_daily * days
+
+    # --- Activities (estimated) ---
+    activities_daily = int(1200 * mult)
+    activities_total = activities_daily * days
+
+    # --- Miscellaneous (estimated) ---
+    misc_daily = int(500 * mult)
+    misc_total = misc_daily * days
+
+    subtotal = (
+        flights_total
+        + accommodation_total
+        + food_total
+        + transport_total
+        + activities_total
+        + misc_total
+    )
+
+    # 10% emergency buffer
+    buffer_amount = round(subtotal * 0.10)
+    total_with_buffer = subtotal + buffer_amount
+
+    # Budget comparison
+    budget_limit = float(budget_limit) if budget_limit else 0
+    within_budget = total_with_buffer <= budget_limit if budget_limit > 0 else True
+    remaining = budget_limit - total_with_buffer if budget_limit > 0 else 0
+    percentage_used = round((total_with_buffer / budget_limit) * 100, 1) if budget_limit > 0 else 0
+
+    # Recommendations
+    recommendations = []
+    if budget_limit > 0:
+        if not within_budget:
+            recommendations.append("⚠️ Budget exceeded! Consider these options:")
+            if flights_total > accommodation_total:
+                recommendations.append("- Look for budget airlines or alternative dates")
+                recommendations.append("- Consider train travel for nearby destinations")
+            else:
+                recommendations.append("- Consider hostels, Airbnb, or budget hotels")
+                recommendations.append("- Look for stays slightly outside the main area")
+            recommendations.append("- Cut activities/dining to essentials")
+        elif percentage_used > 85:
+            recommendations.append("💡 Budget is tight — keep a buffer for emergencies")
+        elif percentage_used < 60:
+            recommendations.append("✅ You have room in your budget for upgrades or premium experiences")
+        else:
+            recommendations.append("✅ Budget looks good! Trip is well-planned within limits")
+    else:
+        recommendations.append("💡 No budget limit specified — showing estimated costs")
+
+    recommendations += [
+        "Book flights 2-3 weeks in advance for best prices",
+        "Try street food for authentic and cheap meals",
+    ]
+
     result = {
         "destination": destination,
         "duration_days": days,
         "travelers": travelers,
         "budget_level": budget_level,
-        "daily_breakdown": daily_costs,
-        "daily_total_per_person": daily_total,
-        "total_per_person": daily_total * days,
-        "total_for_group": daily_total * days * travelers,
+        "breakdown": {
+            "flights": round(flights_total),
+            "accommodation": round(accommodation_total),
+            "food": round(food_total),
+            "activities": round(activities_total),
+            "transport": round(transport_total),
+            "miscellaneous": round(misc_total),
+            "buffer_10_percent": round(buffer_amount),
+        },
+        "subtotal": round(subtotal),
+        "total_with_buffer": round(total_with_buffer),
+        "budget_limit": round(budget_limit),
+        "remaining_budget": round(remaining),
+        "within_budget": within_budget,
+        "percentage_used": percentage_used,
         "currency": "INR",
-        "tips": [
-            "Book flights 2-3 weeks in advance for best prices",
-            "Consider staying in hostels or Airbnb for budget travel",
-            "Use local transport like metro and buses",
-            "Try street food for authentic and cheap meals"
-        ]
+        "recommendations": recommendations,
     }
-    
+
     return json.dumps(result, ensure_ascii=False)
 
 
-def itinerary_builder(destination: str, days: int = 3, interests: str = None) -> str:
-    """Build a day-by-day itinerary"""
-    
+def itinerary_builder(
+    destination: str,
+    days: int = 3,
+    interests: str = None,
+    restaurants: Optional[list] = None,
+    attractions: Optional[list] = None,
+) -> str:
+    """Build a day-by-day itinerary, grounded in real places when provided.
+
+    `restaurants` and `attractions` are optional lists of names (strings) from
+    earlier tool results; they are rotated across the days so each slot
+    references a real place instead of a generic placeholder.
+    """
+    restaurants = [r for r in (restaurants or []) if r]
+    attractions = [a for a in (attractions or []) if a]
+
+    def _pick(items: list, index: int, fallback: str) -> str:
+        if not items:
+            return fallback
+        return items[index % len(items)]
+
     itinerary = {
         "destination": destination,
         "duration": f"{days} days",
         "interests": interests or "General sightseeing",
         "days": []
     }
-    
+
     for day in range(1, days + 1):
+        lunch_place = _pick(restaurants, (day - 1) * 2, "a well-rated local restaurant")
+        dinner_place = _pick(restaurants, (day - 1) * 2 + 1, "a popular dinner spot")
+        morning_sight = _pick(attractions, (day - 1) * 2, f"{destination}'s top sights")
+        afternoon_sight = _pick(attractions, (day - 1) * 2 + 1, "a local cultural experience")
+
         day_plan = {
             "day": day,
             "theme": f"Explore {destination} - Day {day}",
             "morning": [
                 {"time": "08:00", "activity": "Breakfast at hotel"},
-                {"time": "09:00", "activity": f"Visit famous landmark #{day}"},
+                {"time": "09:00", "activity": f"Visit {morning_sight}"},
                 {"time": "11:00", "activity": "Local market exploration"}
             ],
             "afternoon": [
-                {"time": "12:30", "activity": "Lunch at local restaurant"},
-                {"time": "14:00", "activity": f"Cultural experience #{day}"},
+                {"time": "12:30", "activity": f"Lunch at {lunch_place}"},
+                {"time": "14:00", "activity": f"Explore {afternoon_sight}"},
                 {"time": "16:00", "activity": "Shopping / Leisure time"}
             ],
             "evening": [
                 {"time": "18:00", "activity": "Sunset viewpoint"},
-                {"time": "19:30", "activity": "Dinner"},
+                {"time": "19:30", "activity": f"Dinner at {dinner_place}"},
                 {"time": "21:00", "activity": "Night walk / Entertainment"}
             ],
             "estimated_cost": 3000 + (day * 500)
         }
         itinerary["days"].append(day_plan)
-    
+
     return json.dumps(itinerary, ensure_ascii=False)
-
-
-def get_all_tools():
-    """Return list of all available LangChain-compatible tools"""
-    
-    # Wrapper functions that accept a single string input
-    def _google_search_wrapper(query: str) -> str:
-        return google_search(query=query)
-    
-    def _flight_search_wrapper(input_str: str) -> str:
-        try:
-            params = json.loads(input_str) if input_str.strip().startswith("{") else {"origin": "Delhi", "destination": input_str}
-            return flight_search(**params)
-        except:
-            return flight_search(origin="Delhi", destination=input_str)
-    
-    def _hotel_search_wrapper(input_str: str) -> str:
-        try:
-            params = json.loads(input_str) if input_str.strip().startswith("{") else {"city": input_str}
-            return hotel_search(**params)
-        except:
-            return hotel_search(city=input_str)
-    
-    def _restaurant_finder_wrapper(input_str: str) -> str:
-        try:
-            params = json.loads(input_str) if input_str.strip().startswith("{") else {"city": input_str}
-            return restaurant_finder(**params)
-        except:
-            return restaurant_finder(city=input_str)
-    
-    def _budget_calculator_wrapper(input_str: str) -> str:
-        try:
-            params = json.loads(input_str) if input_str.strip().startswith("{") else {"destination": input_str}
-            return budget_calculator(**params)
-        except:
-            return budget_calculator(destination=input_str)
-    
-    def _itinerary_builder_wrapper(input_str: str) -> str:
-        try:
-            params = json.loads(input_str) if input_str.strip().startswith("{") else {"destination": input_str}
-            return itinerary_builder(**params)
-        except:
-            return itinerary_builder(destination=input_str)
-    
-    return [
-        Tool.from_function(
-            func=_google_search_wrapper,
-            name="google_search",
-            description="Search the web for travel information. Input: search query string."
-        ),
-        Tool.from_function(
-            func=_flight_search_wrapper,
-            name="flight_search",
-            description="Search for flights. Input: JSON with origin, destination, date."
-        ),
-        Tool.from_function(
-            func=_hotel_search_wrapper,
-            name="hotel_search",
-            description="Search for hotels. Input: JSON with city, check_in, check_out."
-        ),
-        Tool.from_function(
-            func=_restaurant_finder_wrapper,
-            name="restaurant_finder",
-            description="Find restaurants. Input: JSON with city, cuisine, budget."
-        ),
-        Tool.from_function(
-            func=_budget_calculator_wrapper,
-            name="budget_calculator",
-            description="Calculate trip budget. Input: JSON with destination, days, travelers."
-        ),
-        Tool.from_function(
-            func=_itinerary_builder_wrapper,
-            name="itinerary_builder",
-            description="Build day-by-day itinerary. Input: JSON with destination, days."
-        )
-    ]

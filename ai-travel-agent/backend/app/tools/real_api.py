@@ -17,30 +17,12 @@ def _get_key(env_var_name):
         return None
     return key
 
-# Simple airport code mapper
-def _get_airport_code(city_name: str) -> str:
-    city_map = {
-        "delhi": "DEL",
-        "new delhi": "DEL",
-        "mumbai": "BOM",
-        "bombay": "BOM",
-        "bangalore": "BLR",
-        "bengaluru": "BLR",
-        "goa": "GOI",
-        "chennai": "MAA",
-        "madras": "MAA",
-        "kolkata": "CCU",
-        "calcutta": "CCU",
-        "hyderabad": "HYD",
-        "pune": "PNQ",
-        "ahmedabad": "AMD",
-        "jaipur": "JAI",
-        "kochi": "COK",
-        "cochin": "COK",
-        "kerala": "COK"
-    }
-    cleaned = city_name.lower().strip()
-    return city_map.get(cleaned, city_name.upper()[:3]) # Fallback to first 3 chars
+from app.tools.airports import resolve_airport
+
+
+def _get_airport_code(city_name: str) -> Optional[str]:
+    """IATA code for a city, or None when it cannot be resolved."""
+    return resolve_airport(city_name)
 
 
 def search_flights_serpapi(origin: str, destination: str, date: str = None, return_date: str = None, passengers: int = 1) -> dict:
@@ -62,10 +44,19 @@ def search_flights_serpapi(origin: str, destination: str, date: str = None, retu
             date = (datetime.now() + timedelta(days=14)).strftime("%Y-%m-%d")
             logger.warning(f"Auto-corrected past/missing date to: {date}")
         
-        # Get airport codes
+        # Get airport codes. An unresolved city is reported rather than
+        # guessed — a wrong code silently returns flights to another city.
         origin_code = _get_airport_code(origin)
         dest_code = _get_airport_code(destination)
-        
+
+        if not origin_code or not dest_code:
+            unknown = origin if not origin_code else destination
+            logger.warning("No airport known for %r; using estimated flights", unknown)
+            return get_mock_flights(
+                origin, destination, date, passengers,
+                reason=f"No airport found for {unknown}",
+            )
+
         params = {
             "engine": "google_flights",
             "departure_id": origin_code,
@@ -84,13 +75,8 @@ def search_flights_serpapi(origin: str, destination: str, date: str = None, retu
             # If no return date, force One-way to avoid 400 error
             params["type"] = 2
         
-        try:
-            with open("/app/debug_params.txt", "w") as f:
-                f.write(f"PARAMS: {json.dumps(params)}\n")
-        except:
-            pass
-            
-        logger.info(f"Calling SerpAPI with params: {json.dumps(params)}")
+        # Never log `params` verbatim — it contains the API key.
+        logger.info(f"Calling SerpAPI: {origin_code} -> {dest_code} on {date} (return: {return_date})")
         response = requests.get("https://serpapi.com/search", params=params, timeout=15)
         
         if response.status_code != 200:
@@ -113,15 +99,16 @@ def search_flights_serpapi(origin: str, destination: str, date: str = None, retu
                 flight_info = flight_data.get("flights", [{}])[0]
                 total_duration = flight_data.get("total_duration", 0)
                 
-                # Check for booking token or link
-                # Google Flights usually doesn't give a direct deep link in the basic API, 
-                # but we can construct a search URL
-                google_flights_link = f"https://www.google.com/travel/flights?q=flights+from+{origin_code}+to+{dest_code}+on+{date}"
+                # Build a deep link to Google Flights with pre-filled search
+                # Format: /travel/flights/s/ORIGIN.DATE/DEST.DATE/...
+                dep_id = flight_info.get("departure_airport", {}).get("id", origin_code)
+                arr_id = flight_info.get("arrival_airport", {}).get("id", dest_code)
+                # Google Flights deep link format: /travel/flights/s/DEL/GOI/2026-03-15
+                booking_link = f"https://www.google.com/travel/flights/s/{dep_id}/{arr_id}/{date}"
                 if return_date:
-                    google_flights_link += f"+returning+on+{return_date}"
-                
-                # Make it a clickable generic link if specific deep link fails (which it often does in basic tiers)
-                booking_link = google_flights_link
+                    booking_link += f"/{return_date}"
+                # Add passenger count and economy class
+                booking_link += f"?tfs=&curr=INR&hl=en&gl=in&passengers={passengers}"
                 
                 flights.append({
                     "airline": flight_info.get("airline", "Unknown"),
@@ -231,22 +218,26 @@ def search_hotels_rapidapi(city: str, check_in: str = None, check_out: str = Non
             search_queries.append(city.split(",")[0].strip())
             
         dest_data = None
+        last_status = None
         for query in search_queries:
             logger.info(f"Searching for hotels in: {query}")
             try:
                 dest_response = requests.get(search_url, headers=headers, params={"query": query}, timeout=10)
+                last_status = dest_response.status_code
+                if dest_response.status_code == 429:
+                    logger.warning(f"RapidAPI quota exceeded (429)")
+                    return get_mock_hotels(city, check_in, check_out, guests, reason="API Quota Exceeded")
                 if dest_response.status_code == 200:
                     data = dest_response.json()
                     if data and data.get("data"):
-                        # Verify it's actually India if we asked for India
-                        # (Basic check, though API usually respects the query)
                         dest_data = data
                         break
             except:
                 continue
         
         if not dest_data or not dest_data.get("data"):
-            return get_mock_hotels(city, check_in, check_out, guests, reason="City Not Found")
+            reason = f"API Error {last_status}" if last_status and last_status != 200 else "City Not Found"
+            return get_mock_hotels(city, check_in, check_out, guests, reason=reason)
             
         dest_id = dest_data["data"][0]["dest_id"]
         search_type = dest_data["data"][0]["search_type"]
@@ -349,66 +340,8 @@ def get_mock_hotels(city: str, check_in: str = None, check_out: str = None, gues
     }
 
 
-def search_restaurants_foursquare(location: str, cuisine: str = None, budget: str = "moderate") -> dict:
-    """Search for real restaurants using Foursquare Places API"""
-    try:
-        import requests
-        
-        foursquare_key = _get_key("FOURSQUARE_API_KEY")
-        if not foursquare_key:
-            return get_mock_restaurants(location, cuisine, budget, reason="API Key Missing")
-        
-        url = "https://api.foursquare.com/v3/places/search"
-        headers = {
-            "Accept": "application/json",
-            "Authorization": foursquare_key
-        }
-        
-        params = {
-            "near": location,
-            "categories": "13065",  # Restaurant category
-            "limit": 10
-        }
-        
-        if cuisine and cuisine.lower() != "any":
-            params["query"] = cuisine
-        
-        logger.info(f"Searching for restaurants in: {location}")
-        response = requests.get(url, headers=headers, params=params, timeout=10)
-        response.raise_for_status()
-        data = response.json()
-        
-        restaurants = []
-        for place in data.get("results", [])[:8]:
-            try:
-                # Convert rating from 10-scale to 5-scale
-                rating = place.get("rating", 0) / 2 if "rating" in place else 4.0
-                
-                restaurants.append({
-                    "name": place.get("name", "Unknown Restaurant"),
-                    "cuisine": place.get("categories", [{}])[0].get("name", "Restaurant") if place.get("categories") else "Restaurant",
-                    "rating": round(rating, 1),
-                    "price_level": 2,
-                    "address": place.get("location", {}).get("address", ""),
-                    "popular_dishes": []
-                })
-            except Exception:
-                continue
-        
-        if not restaurants:
-            return get_mock_restaurants(location, cuisine, budget, reason="No Restaurants Found")
-        
-        return {
-            "location": location,
-            "cuisine": cuisine or "all",
-            "budget": budget,
-            "restaurants": restaurants,
-            "source": "Foursquare - Real Data"
-        }
-        
-    except Exception as e:
-        logger.error(f"Foursquare restaurant search error: {e}")
-        return get_mock_restaurants(location, cuisine, budget, reason=f"API Error: {str(e)}")
+# Foursquare v3 was retired on 2026-05-15 (returns 410). Restaurants now come
+# from OpenStreetMap — see app/tools/places_api.py.
 
 
 def get_mock_restaurants(location: str, cuisine: str = None, budget: str = "moderate", reason: str = "API not configured") -> dict:

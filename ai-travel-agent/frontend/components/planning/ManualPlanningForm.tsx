@@ -1,265 +1,270 @@
 'use client'
 
 import { useState } from 'react'
-import { Calendar, MapPin, Users, DollarSign, Utensils, Sparkles, Plane } from 'lucide-react'
+import { createManualPlan } from '@/lib/api-client'
+import { IDLE_SOURCES, SourceKey, SourceMap } from '@/components/ui/SourceLedger'
 
 interface ManualPlanningFormProps {
     onItineraryGenerated: (data: any) => void
+    onSourcesChange?: (sources: SourceMap) => void
 }
 
-export default function ManualPlanningForm({ onItineraryGenerated }: ManualPlanningFormProps) {
+const CUISINES = [
+    { value: 'any', label: 'No preference' },
+    { value: 'local', label: 'Local cooking' },
+    { value: 'vegetarian', label: 'Vegetarian' },
+    { value: 'seafood', label: 'Seafood' },
+    { value: 'street food', label: 'Street food' },
+]
+
+const TRIP_STYLES = [
+    { value: 'relaxed', label: 'Relaxed' },
+    { value: 'adventure', label: 'Adventure' },
+    { value: 'cultural', label: 'Cultural' },
+    { value: 'food', label: 'Food' },
+    { value: 'budget', label: 'Budget' },
+]
+
+/** Mirror the ledger rows off a completed plan, as the chat path does live. */
+function sourcesFromPlan(collected: any): SourceMap {
+    const read = (section: any, listKey: string) => {
+        const list = section?.[listKey] || []
+        const isLive = /Real Data/.test(section?.source || '')
+        return { state: (list.length ? (isLive ? 'live' : 'est') : 'waiting') as any, count: list.length }
+    }
+    return {
+        flights: read(collected?.flights, 'flights'),
+        stays: read(collected?.hotels, 'hotels'),
+        eateries: read(collected?.restaurants, 'restaurants'),
+        sights: read(collected?.attractions, 'attractions'),
+    }
+}
+
+export default function ManualPlanningForm({
+    onItineraryGenerated,
+    onSourcesChange,
+}: ManualPlanningFormProps) {
+    const today = new Date().toISOString().split('T')[0]
+    const inTwoWeeks = new Date(Date.now() + 14 * 864e5).toISOString().split('T')[0]
+    const threeDaysLater = new Date(Date.now() + 17 * 864e5).toISOString().split('T')[0]
+
     const [formData, setFormData] = useState({
         origin: '',
         destination: '',
-        departureDate: '',
-        returnDate: '',
+        departureDate: inTwoWeeks,
+        returnDate: threeDaysLater,
         passengers: 1,
-        budget: 15000,
+        budget: 30000,
         preferences: 'any',
-        tripStyle: 'relaxed'
+        tripStyle: 'relaxed',
     })
     const [isLoading, setIsLoading] = useState(false)
     const [error, setError] = useState('')
 
+    const nights = (() => {
+        const from = new Date(formData.departureDate).getTime()
+        const to = new Date(formData.returnDate).getTime()
+        const days = Math.round((to - from) / 864e5)
+        return Number.isFinite(days) ? days : 0
+    })()
+
+    const set = (patch: Partial<typeof formData>) => setFormData({ ...formData, ...patch })
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
         setError('')
+
+        if (nights < 1) {
+            setError('The return date must be after the departure date.')
+            return
+        }
+
         setIsLoading(true)
+        onSourcesChange?.({
+            flights: { state: 'searching', count: 0 },
+            stays: { state: 'searching', count: 0 },
+            eateries: { state: 'searching', count: 0 },
+            sights: { state: 'searching', count: 0 },
+        })
 
         try {
-            const response = await fetch('http://localhost:8000/api/manual-plan', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    origin: formData.origin,
-                    destination: formData.destination,
-                    departure_date: formData.departureDate,
-                    return_date: formData.returnDate,
-                    passengers: formData.passengers,
-                    budget: formData.budget,
-                    preferences: formData.preferences,
-                    trip_style: formData.tripStyle
-                })
+            const data = await createManualPlan({
+                origin: formData.origin,
+                destination: formData.destination,
+                departure_date: formData.departureDate,
+                return_date: formData.returnDate,
+                passengers: formData.passengers,
+                budget: formData.budget,
+                preferences: formData.preferences,
+                trip_style: formData.tripStyle,
             })
 
-            const data = await response.json()
-
-            if (data.success) {
-                // Pass the entire response, ItineraryDisplay will extract collected_data
-                onItineraryGenerated(data)
-            } else {
-                setError(data.detail || 'Failed to generate itinerary')
-            }
-        } catch (error) {
-            console.error('Error:', error)
-            setError('Failed to connect to server. Please try again.')
+            onSourcesChange?.(sourcesFromPlan(data?.collected_data))
+            onItineraryGenerated(data)
+        } catch (err) {
+            onSourcesChange?.(IDLE_SOURCES)
+            setError(err instanceof Error ? err.message : 'Could not reach the desk.')
         } finally {
             setIsLoading(false)
         }
     }
 
-    // Get min date (today) and default dates
-    const today = new Date().toISOString().split('T')[0]
-    const defaultDeparture = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
-    const defaultReturn = new Date(Date.now() + 17 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
-
     return (
-        <div className="max-w-4xl mx-auto">
-            {/* Info Banner */}
-            <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-xl">
-                <p className="text-sm text-blue-800">
-                    <strong>💡 Quick Planning:</strong> Fill in the form below to generate your itinerary instantly - no AI chat needed!
-                </p>
+        <form onSubmit={handleSubmit}>
+            <div className="flex items-baseline justify-between gap-4 pb-4 mb-5 border-b border-rule">
+                <p className="field-label">Booking slip</p>
+                <p className="data text-[0.625rem] text-muted/70">No AI</p>
             </div>
 
-            <form onSubmit={handleSubmit} className="space-y-6">
-                {/* Flight Details Section */}
-                <div className="card p-6 bg-white/80 backdrop-blur-sm border border-gray-200 rounded-2xl shadow-lg">
-                    <h3 className="text-lg font-semibold mb-4 flex items-center gap-2 text-gray-800">
-                        <Plane className="w-5 h-5 text-primary-600" />
-                        Travel Details
-                    </h3>
+            <fieldset disabled={isLoading} className="space-y-5 disabled:opacity-60">
+                <div className="grid sm:grid-cols-2 gap-4">
+                    <Field label="From" htmlFor="origin">
+                        <input
+                            id="origin"
+                            type="text"
+                            required
+                            placeholder="Delhi"
+                            className="desk-input"
+                            value={formData.origin}
+                            onChange={(e) => set({ origin: e.target.value })}
+                        />
+                    </Field>
 
-                    <div className="grid md:grid-cols-2 gap-4">
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                                Origin City *
-                            </label>
-                            <input
-                                type="text"
-                                placeholder="e.g., Delhi, Mumbai, Bangalore"
-                                className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all"
-                                value={formData.origin}
-                                onChange={(e) => setFormData({ ...formData, origin: e.target.value })}
-                                required
-                            />
-                        </div>
+                    <Field label="To" htmlFor="destination">
+                        <input
+                            id="destination"
+                            type="text"
+                            required
+                            placeholder="Udaipur"
+                            className="desk-input"
+                            value={formData.destination}
+                            onChange={(e) => set({ destination: e.target.value })}
+                        />
+                    </Field>
 
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                                Destination *
-                            </label>
-                            <input
-                                type="text"
-                                placeholder="e.g., Goa, Kerala, Manali"
-                                className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all"
-                                value={formData.destination}
-                                onChange={(e) => setFormData({ ...formData, destination: e.target.value })}
-                                required
-                            />
-                        </div>
+                    <Field label="Depart" htmlFor="departure">
+                        <input
+                            id="departure"
+                            type="date"
+                            required
+                            min={today}
+                            className="desk-input data"
+                            value={formData.departureDate}
+                            onChange={(e) => set({ departureDate: e.target.value })}
+                        />
+                    </Field>
 
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                                <Calendar className="w-4 h-4 inline mr-1" />
-                                Departure Date *
-                            </label>
-                            <input
-                                type="date"
-                                min={today}
-                                className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all"
-                                value={formData.departureDate}
-                                onChange={(e) => setFormData({ ...formData, departureDate: e.target.value })}
-                                required
-                            />
-                        </div>
+                    <Field
+                        label="Return"
+                        htmlFor="return"
+                        hint={nights > 0 ? `${nights} night${nights === 1 ? '' : 's'}` : undefined}
+                    >
+                        <input
+                            id="return"
+                            type="date"
+                            required
+                            min={formData.departureDate || today}
+                            className="desk-input data"
+                            value={formData.returnDate}
+                            onChange={(e) => set({ returnDate: e.target.value })}
+                        />
+                    </Field>
 
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                                <Calendar className="w-4 h-4 inline mr-1" />
-                                Return Date *
-                            </label>
-                            <input
-                                type="date"
-                                min={formData.departureDate || today}
-                                className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all"
-                                value={formData.returnDate}
-                                onChange={(e) => setFormData({ ...formData, returnDate: e.target.value })}
-                                required
-                            />
-                        </div>
+                    <Field label="Travellers" htmlFor="passengers">
+                        <input
+                            id="passengers"
+                            type="number"
+                            min={1}
+                            max={10}
+                            className="desk-input data"
+                            value={formData.passengers}
+                            onChange={(e) => set({ passengers: Math.max(1, parseInt(e.target.value) || 1) })}
+                        />
+                    </Field>
 
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                                <Users className="w-4 h-4 inline mr-1" />
-                                Number of Travelers
-                            </label>
-                            <input
-                                type="number"
-                                min="1"
-                                max="10"
-                                className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all"
-                                value={formData.passengers}
-                                onChange={(e) => setFormData({ ...formData, passengers: parseInt(e.target.value) })}
-                            />
-                        </div>
-                    </div>
+                    <Field label="Budget, total ₹" htmlFor="budget">
+                        <input
+                            id="budget"
+                            type="number"
+                            required
+                            min={1000}
+                            step={1000}
+                            className="desk-input data"
+                            value={formData.budget}
+                            onChange={(e) => set({ budget: Math.max(0, parseInt(e.target.value) || 0) })}
+                        />
+                    </Field>
                 </div>
 
-                {/* Budget & Preferences */}
-                <div className="card p-6 bg-white/80 backdrop-blur-sm border border-gray-200 rounded-2xl shadow-lg">
-                    <h3 className="text-lg font-semibold mb-4 flex items-center gap-2 text-gray-800">
-                        <Sparkles className="w-5 h-5 text-primary-600" />
-                        Preferences & Budget
-                    </h3>
+                <Field label="Food" htmlFor="preferences">
+                    <select
+                        id="preferences"
+                        className="desk-input"
+                        value={formData.preferences}
+                        onChange={(e) => set({ preferences: e.target.value })}
+                    >
+                        {CUISINES.map((c) => (
+                            <option key={c.value} value={c.value} className="bg-card text-ink">
+                                {c.label}
+                            </option>
+                        ))}
+                    </select>
+                </Field>
 
-                    <div className="grid md:grid-cols-2 gap-4">
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                                <DollarSign className="w-4 h-4 inline mr-1" />
-                                Total Budget (₹) *
-                            </label>
-                            <input
-                                type="number"
-                                min="1000"
-                                step="1000"
-                                placeholder="15000"
-                                className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all"
-                                value={formData.budget}
-                                onChange={(e) => setFormData({ ...formData, budget: parseInt(e.target.value) })}
-                                required
-                            />
-                            <p className="mt-1 text-xs text-gray-500">Per person budget for the entire trip</p>
-                        </div>
-
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                                <Utensils className="w-4 h-4 inline mr-1" />
-                                Food Preferences
-                            </label>
-                            <select
-                                className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all"
-                                value={formData.preferences}
-                                onChange={(e) => setFormData({ ...formData, preferences: e.target.value })}
+                <div>
+                    <p className="field-label mb-2">Pace</p>
+                    <div className="flex flex-wrap gap-2">
+                        {TRIP_STYLES.map((style) => (
+                            <button
+                                key={style.value}
+                                type="button"
+                                onClick={() => set({ tripStyle: style.value })}
+                                data-active={formData.tripStyle === style.value}
+                                className="btn-quiet"
                             >
-                                <option value="any">Any Cuisine</option>
-                                <option value="local">Local Cuisine</option>
-                                <option value="vegetarian">Vegetarian</option>
-                                <option value="seafood">Seafood</option>
-                                <option value="street food">Street Food</option>
-                            </select>
-                        </div>
-
-                        <div className="md:col-span-2">
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                                Trip Style
-                            </label>
-                            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-                                {[
-                                    { value: 'relaxed', label: '🏖️ Relaxation', emoji: '🏖️' },
-                                    { value: 'adventure', label: '🏔️ Adventure', emoji: '🏔️' },
-                                    { value: 'cultural', label: '🏛️ Cultural', emoji: '🏛️' },
-                                    { value: 'food', label: '🍜 Food Tour', emoji: '🍜' },
-                                    { value: 'budget', label: '💰 Budget', emoji: '💰' }
-                                ].map((style) => (
-                                    <button
-                                        key={style.value}
-                                        type="button"
-                                        onClick={() => setFormData({ ...formData, tripStyle: style.value })}
-                                        className={`p-3 rounded-xl border-2 transition-all text-sm font-medium ${formData.tripStyle === style.value
-                                            ? 'border-primary-500 bg-primary-50 text-primary-700'
-                                            : 'border-gray-200 hover:border-gray-300 text-gray-600'
-                                            }`}
-                                    >
-                                        <div className="text-2xl mb-1">{style.emoji}</div>
-                                        <div className="text-xs">{style.label.replace(style.emoji + ' ', '')}</div>
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
+                                {style.label}
+                            </button>
+                        ))}
                     </div>
                 </div>
+            </fieldset>
 
-                {/* Error Message */}
-                {error && (
-                    <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">
-                        <strong>Error:</strong> {error}
-                    </div>
-                )}
+            {error && (
+                <p className="mt-5 pl-3 border-l-2 border-est text-sm text-est animate-rise">{error}</p>
+            )}
 
-                {/* Submit Button */}
-                <button
-                    type="submit"
-                    disabled={isLoading}
-                    className="w-full py-4 px-6 bg-gradient-to-r from-primary-600 to-purple-600 text-white font-semibold text-lg rounded-2xl shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
-                >
-                    {isLoading ? (
-                        <span className="flex items-center justify-center gap-2">
-                            <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
-                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                            </svg>
-                            Generating Your Perfect Itinerary...
-                        </span>
-                    ) : (
-                        '🚀 Generate My Itinerary'
-                    )}
-                </button>
-
-                <p className="text-center text-xs text-gray-500">
-                    This feature works without using AI - perfect for quick planning!
+            <div className="flex items-center justify-between gap-4 pt-5 mt-5 border-t border-rule">
+                <p className="data text-[0.625rem] text-muted">
+                    {isLoading ? 'Searching…' : 'Prices checked live at the source'}
                 </p>
-            </form>
+                <button type="submit" disabled={isLoading} className="btn-ink shrink-0">
+                    {isLoading ? 'Working' : 'Build plan'}
+                </button>
+            </div>
+        </form>
+    )
+}
+
+function Field({
+    label,
+    htmlFor,
+    hint,
+    children,
+}: {
+    label: string
+    htmlFor: string
+    hint?: string
+    children: React.ReactNode
+}) {
+    return (
+        <div>
+            <div className="flex items-baseline justify-between gap-2 mb-1.5">
+                <label htmlFor={htmlFor} className="field-label">
+                    {label}
+                </label>
+                {hint && <span className="data text-[0.625rem] text-muted/80">{hint}</span>}
+            </div>
+            {children}
         </div>
     )
 }

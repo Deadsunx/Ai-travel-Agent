@@ -1,0 +1,45 @@
+[
+  {
+    "id": "goa_budget_trip",
+    "query": "Plan a 3-day trip to Goa from Mumbai under 30000 rupees",
+    "expect_plan": true,
+    "expect_days": 3,
+    "expect_budget_limit": 30000
+  },
+  {
+    "id": "jaipur_two_people",
+    "query": "Plan 5 days in Jaipur in December for 2 people",
+    "expect_plan": true,
+    "expect_days": 5,
+    "expect_travelers": 2
+  },
+  {
+    "id": "kerala_no_details",
+    "query": "Plan a trip to Kerala",
+    "expect_plan": true
+  },
+  {
+    "id": "udaipur_group",
+    "query": "Plan 4 days in Udaipur from Delhi for 3 travelers",
+    "expect_plan": true,
+    "expect_days": 4,
+    "expect_travelers": 3
+  },
+  {
+    "id": "past_date_corrected",
+    "query": "Plan a weekend trip to Pondicherry starting 2020-01-01",
+    "expect_plan": true,
+    "expect_future_dates": true
+  },
+  {
+    "id": "greeting_no_plan",
+    "query": "hello, what can you do?",
+    "expect_plan": false
+  },
+  {
+    "id": "refinement_followup",
+    "query": "Can you make that trip cheaper?",
+    "expect_plan": false,
+    "requires_prior": "goa_budget_trip"
+  }
+]

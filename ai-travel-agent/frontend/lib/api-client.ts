@@ -14,7 +14,7 @@ export interface ChatRequest {
 }
 
 export interface StreamEvent {
-    type: 'status' | 'result' | 'error' | 'token'
+    type: 'status' | 'result' | 'error' | 'token' | 'cancelled'
     message?: string
     data?: any
 }
@@ -26,7 +26,8 @@ export async function sendMessageStreaming(
     request: ChatRequest,
     onEvent: (event: StreamEvent) => void,
     onComplete: () => void,
-    onError: (error: string) => void
+    onError: (error: string) => void,
+    signal?: AbortSignal
 ): Promise<void> {
     try {
         const response = await fetch(`${API_URL}/api/chat/`, {
@@ -35,6 +36,7 @@ export async function sendMessageStreaming(
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify(request),
+            signal,
         })
 
         if (!response.ok) {
@@ -73,8 +75,21 @@ export async function sendMessageStreaming(
             }
         }
     } catch (error) {
+        if (error instanceof DOMException && error.name === 'AbortError') {
+            onComplete()
+            return
+        }
         onError(error instanceof Error ? error.message : 'Unknown error')
     }
+}
+
+/**
+ * Request cancellation of an in-progress streaming response.
+ */
+export async function cancelStreaming(sessionId: string): Promise<void> {
+    await fetch(`${API_URL}/api/chat/cancel/${sessionId}`, {
+        method: 'POST',
+    })
 }
 
 /**
@@ -94,6 +109,36 @@ export async function sendMessageSync(request: ChatRequest): Promise<any> {
     }
 
     return response.json()
+}
+
+export interface ManualPlanRequest {
+    origin: string
+    destination: string
+    departure_date: string
+    return_date: string
+    passengers: number
+    budget: number
+    preferences: string
+    trip_style: string
+}
+
+/**
+ * Build a plan from the form, without the AI agent.
+ */
+export async function createManualPlan(request: ManualPlanRequest): Promise<any> {
+    const response = await fetch(`${API_URL}/api/manual-plan`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(request),
+    })
+
+    const data = await response.json().catch(() => null)
+
+    if (!response.ok) {
+        throw new Error(data?.detail || `Request failed (${response.status})`)
+    }
+
+    return data
 }
 
 /**

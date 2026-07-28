@@ -1,6 +1,5 @@
 'use client'
 
-import { Plane, Hotel, Utensils, Ticket, Package, Shield, CheckCircle, AlertTriangle } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
 
 interface BudgetBreakdownProps {
@@ -9,6 +8,7 @@ interface BudgetBreakdownProps {
             flights?: number
             accommodation?: number
             food?: number
+            transport?: number
             activities?: number
             miscellaneous?: number
             buffer_10_percent?: number
@@ -23,84 +23,98 @@ interface BudgetBreakdownProps {
     }
 }
 
+/** A fare table. Costs align on the decimal; the verdict is stated in words. */
 export default function BudgetBreakdown({ data }: BudgetBreakdownProps) {
     const breakdown = data.breakdown || {}
+    const dailyBreakdown = (data as any).daily_breakdown || {}
+    const hasDailyBreakdown = Object.keys(dailyBreakdown).length > 0
+
     const withinBudget = data.within_budget !== false
     const percentageUsed = data.percentage_used || 0
+    const hasLimit = (data.budget_limit ?? 0) > 0
 
-    const items = [
-        { label: 'Flights', value: breakdown.flights || 0, icon: Plane, color: 'text-blue-500' },
-        { label: 'Accommodation', value: breakdown.accommodation || 0, icon: Hotel, color: 'text-emerald-500' },
-        { label: 'Food', value: breakdown.food || 0, icon: Utensils, color: 'text-orange-500' },
-        { label: 'Activities', value: breakdown.activities || 0, icon: Ticket, color: 'text-purple-500' },
-        { label: 'Miscellaneous', value: breakdown.miscellaneous || 0, icon: Package, color: 'text-gray-500' },
-        { label: 'Buffer (10%)', value: breakdown.buffer_10_percent || 0, icon: Shield, color: 'text-amber-500' },
-    ]
+    const items = hasDailyBreakdown
+        ? [
+            { label: 'Accommodation', value: dailyBreakdown.accommodation || 0 },
+            { label: 'Food', value: dailyBreakdown.food || 0 },
+            { label: 'Transport', value: dailyBreakdown.transport || 0 },
+            { label: 'Activities', value: dailyBreakdown.activities || 0 },
+            { label: 'Miscellaneous', value: dailyBreakdown.miscellaneous || 0 },
+        ]
+        : [
+            { label: 'Flights', value: breakdown.flights || 0 },
+            { label: 'Accommodation', value: breakdown.accommodation || 0 },
+            { label: 'Food', value: breakdown.food || 0 },
+            { label: 'Transport', value: breakdown.transport || 0 },
+            { label: 'Activities', value: breakdown.activities || 0 },
+            { label: 'Miscellaneous', value: breakdown.miscellaneous || 0 },
+            { label: 'Buffer (10%)', value: breakdown.buffer_10_percent || 0 },
+        ]
+
+    // The calculator prefixes its list with a header line ("Budget exceeded!
+    // Consider these options:"). The verdict above already says that, so drop
+    // any tip that is just a lead-in rather than an action.
+    const tips: string[] = (data.recommendations || (data as any).tips || [])
+        .map((tip: string) => tip.replace(/^[^\w₹]+/, '').trim())
+        .filter((tip: string) => tip && !tip.endsWith(':'))
 
     return (
-        <div className="space-y-4">
-            {/* Budget Items */}
-            <div className="space-y-2">
-                {items.filter(item => item.value > 0).map((item, index) => (
-                    <div key={index} className="flex items-center justify-between py-2">
-                        <div className="flex items-center gap-2">
-                            <item.icon className={`w-4 h-4 ${item.color}`} />
-                            <span className="text-sm text-gray-600">{item.label}</span>
-                        </div>
-                        <span className="text-sm font-medium text-gray-800">
-                            {formatCurrency(item.value)}
+        <div>
+            <table className="w-full">
+                <tbody>
+                    {items.filter((item) => item.value > 0).map((item) => (
+                        <tr key={item.label}>
+                            <td className="py-1.5 text-sm text-muted">{item.label}</td>
+                            <td className="py-1.5 text-right data text-sm text-ink tabular-nums">
+                                {formatCurrency(item.value)}
+                            </td>
+                        </tr>
+                    ))}
+                    <tr>
+                        <td className="pt-3 border-t border-rule text-sm text-ink">Total</td>
+                        <td className="pt-3 border-t border-rule text-right data text-base text-ink tabular-nums">
+                            {formatCurrency(
+                                hasDailyBreakdown
+                                    ? (data as any).total_per_person || 0
+                                    : data.total_with_buffer || 0
+                            )}
+                        </td>
+                    </tr>
+                    {hasLimit && (
+                        <tr>
+                            <td className="py-1.5 text-sm text-muted">Your limit</td>
+                            <td className="py-1.5 text-right data text-sm text-muted tabular-nums">
+                                {formatCurrency(data.budget_limit!)}
+                            </td>
+                        </tr>
+                    )}
+                    {hasLimit && data.remaining_budget !== undefined && (
+                        <tr>
+                            <td className="py-1.5 text-sm text-muted">
+                                {data.remaining_budget >= 0 ? 'Left over' : 'Over by'}
+                            </td>
+                            <td
+                                className={`py-1.5 text-right data text-sm tabular-nums ${data.remaining_budget >= 0 ? 'text-stamp' : 'text-est'
+                                    }`}
+                            >
+                                {formatCurrency(Math.abs(data.remaining_budget))}
+                            </td>
+                        </tr>
+                    )}
+                </tbody>
+            </table>
+
+            {hasLimit && percentageUsed > 0 && (
+                <div className="mt-4">
+                    <div className="flex items-baseline justify-between mb-1.5">
+                        <span className="field-label">Budget used</span>
+                        <span className="data text-[0.6875rem] text-muted tabular-nums">
+                            {Math.round(percentageUsed)}%
                         </span>
                     </div>
-                ))}
-            </div>
-
-            {/* Divider */}
-            <hr className="border-gray-200" />
-
-            {/* Totals */}
-            <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-gray-700">Total (with buffer)</span>
-                    <span className="text-lg font-bold text-gray-900">
-                        {formatCurrency(data.total_with_buffer || 0)}
-                    </span>
-                </div>
-
-                {data.budget_limit !== undefined && data.budget_limit > 0 && (
-                    <div className="flex items-center justify-between">
-                        <span className="text-sm text-gray-600">Budget Limit</span>
-                        <span className="text-sm font-medium text-gray-700">
-                            {formatCurrency(data.budget_limit)}
-                        </span>
-                    </div>
-                )}
-
-                {data.remaining_budget !== undefined && (
-                    <div className="flex items-center justify-between">
-                        <span className="text-sm text-gray-600">Remaining</span>
-                        <span className={`text-sm font-medium ${data.remaining_budget >= 0 ? 'text-emerald-600' : 'text-red-600'
-                            }`}>
-                            {formatCurrency(Math.abs(data.remaining_budget))}
-                            {data.remaining_budget < 0 && ' over'}
-                        </span>
-                    </div>
-                )}
-            </div>
-
-            {/* Progress Bar */}
-            {percentageUsed > 0 && (
-                <div className="space-y-1">
-                    <div className="flex justify-between text-xs text-gray-500">
-                        <span>Budget usage</span>
-                        <span>{Math.round(percentageUsed)}%</span>
-                    </div>
-                    <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                    <div className="h-1 bg-rule/50">
                         <div
-                            className={`h-full rounded-full transition-all duration-500 ${percentageUsed > 100
-                                ? 'bg-red-500'
-                                : percentageUsed > 90
-                                    ? 'bg-amber-500'
-                                    : 'bg-emerald-500'
+                            className={`h-full transition-[width] duration-700 ease-out ${percentageUsed > 100 ? 'bg-est' : percentageUsed > 90 ? 'bg-marigold' : 'bg-stamp'
                                 }`}
                             style={{ width: `${Math.min(percentageUsed, 100)}%` }}
                         />
@@ -108,27 +122,22 @@ export default function BudgetBreakdown({ data }: BudgetBreakdownProps) {
                 </div>
             )}
 
-            {/* Status Badge */}
-            <div className={`flex items-center gap-2 p-3 rounded-lg ${withinBudget ? 'bg-emerald-50' : 'bg-amber-50'
-                }`}>
-                {withinBudget ? (
-                    <CheckCircle className="w-5 h-5 text-emerald-500" />
-                ) : (
-                    <AlertTriangle className="w-5 h-5 text-amber-500" />
-                )}
-                <span className={`text-sm font-medium ${withinBudget ? 'text-emerald-700' : 'text-amber-700'
-                    }`}>
-                    {withinBudget ? 'Within budget ✓' : 'Budget exceeded - see recommendations'}
-                </span>
-            </div>
+            {hasLimit && (
+                <p className={`mt-4 text-sm ${withinBudget ? 'text-ink' : 'text-est'}`}>
+                    {withinBudget
+                        ? 'This trip fits your budget.'
+                        : 'This trip is over your budget. Trim it with the notes below.'}
+                </p>
+            )}
 
-            {/* Recommendations */}
-            {data.recommendations && data.recommendations.length > 0 && (
-                <div className="space-y-1">
-                    {data.recommendations.map((rec, index) => (
-                        <p key={index} className="text-sm text-gray-600">{rec}</p>
+            {tips.length > 0 && (
+                <ul className="mt-3 space-y-1.5">
+                    {tips.map((tip: string, index: number) => (
+                        <li key={index} className="text-xs leading-relaxed text-muted pl-3 relative before:absolute before:left-0 before:top-[0.55em] before:w-1.5 before:h-px before:bg-rule">
+                            {tip}
+                        </li>
                     ))}
-                </div>
+                </ul>
             )}
         </div>
     )

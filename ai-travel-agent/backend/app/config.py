@@ -16,7 +16,11 @@ class Settings(BaseSettings):
     openai_api_key: str = "ollama"
     openai_api_base: str = "http://host.docker.internal:11434/v1"
     model_name: str = "qwen3:8b"
-    available_models: list = ["qwen3:8b", "gemma2:9b", "gemini-2.0-flash"]
+    available_models: list = [
+        "qwen3.5:4b", "qwen3:8b", "qwen3.5:latest", "gemma2:9b",
+        # Version-pinned Gemini names are closed to new keys; use the aliases.
+        "gemini-flash-latest", "gemini-flash-lite-latest",
+    ]
     google_api_key: str = ""
     
     # External APIs
@@ -30,8 +34,7 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     
     # Agent Settings
-    max_agent_iterations: int = 15
-    agent_timeout: int = 120  # seconds
+    agent_timeout: int = 120  # seconds, per LLM call (extraction step)
     
     class Config:
         env_file = ".env"

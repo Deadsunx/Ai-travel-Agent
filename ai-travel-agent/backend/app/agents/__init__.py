@@ -1,9 +1,4 @@
-# Agents package
-from app.agents.travel_agent import TravelPlanningAgent, create_agent
-from app.agents.prompts import TRAVEL_AGENT_SYSTEM_PROMPT
-
-__all__ = [
-    "TravelPlanningAgent",
-    "create_agent",
-    "TRAVEL_AGENT_SYSTEM_PROMPT"
-]
+# Agents package.
+# Intentionally empty: import from the concrete modules
+# (app.agents.travel_agent, app.agents.prompts, ...) so that lightweight
+# helpers stay importable without pulling in LLM client dependencies.

@@ -1,6 +1,6 @@
 # 🌍 AI Travel Agent — Complete Project Walkthrough
 
-> **Version:** 1.0.0 | **Last Updated:** February 2026
+> **Version:** 1.1.0 | **Last Updated:** April 2026
 
 ---
 
@@ -215,6 +215,7 @@ The core intelligence uses **LangChain's ReAct (Reasoning + Acting) pattern**:
 | `POST` | `/api/chat/sync` | AI chat (non-streaming, returns complete response) |
 | `GET` | `/api/chat/history/{session_id}` | Retrieve conversation history |
 | `DELETE` | `/api/chat/history/{session_id}` | Clear conversation history |
+| `POST` | `/api/chat/cancel/{session_id}` | Cancel an in-progress AI response generation |
 | `POST` | `/api/manual-plan` | **Manual planning** — bypasses AI, calls tools directly |
 | `POST` | `/api/itinerary/save` | Save itinerary to PostgreSQL |
 | `GET` | `/api/itinerary/{id}` | Retrieve saved itinerary |
@@ -305,7 +306,8 @@ Both modes output data to the **ItineraryDisplay** component.
 
 ### 6.3 — API Client (`lib/api-client.ts`)
 
-- **`sendMessageStreaming()`** — SSE streaming via `fetch` + `ReadableStream` reader
+- **`sendMessageStreaming()`** — SSE streaming via `fetch` + `ReadableStream` reader (supports AbortSignal)
+- **`cancelStreaming()`** — Aborts in-progress SSE generations
 - **`sendMessageSync()`** — Standard POST for non-streaming responses
 - **`saveItinerary()`** — Persist itinerary to database
 - **`getChatHistory()`** — Load previous conversations
@@ -467,6 +469,24 @@ docker compose up --build
 | `DayPlanSchema` | Single day with morning/afternoon/evening activities |
 | `BudgetBreakdownSchema` | Cost breakdown by category (flights, food, activities, etc.) |
 | `HealthCheckResponse` | DB + Redis connection status |
+
+---
+
+## 12. Recent Enhancements (April 2026)
+
+### Backend Updates
+
+- **Robust Tool Argument Parsing**: Refactored the LangChain tool wrappers (`hotel_search`, `restaurant_finder`, `budget_calculator`, `itinerary_builder`) to consistently use `_extract_json_payload` with strict type normalization for higher reliability.
+- **Improved API Resilience**: Added intelligent error handling for RapidAPI rate limits (HTTP 429), gracefully falling back to mock data with informative reasons.
+- **Deep-Linked Flight Booking**: Rewrote the SerpAPI flight parser to generate exact, bookable Google Flights deep URLs with arrival/departure IDs and precise dates.
+- **Streaming Cancellation Support**: Built server-side hooks to allow in-progress AI chat generation to be canceled mid-stream.
+- **Dependency Bumps**: Updated `pydantic` dependencies to `>=2.7.4`.
+
+### Frontend Updates
+
+- **Abortable Streaming**: Implemented `AbortController` and `AbortSignal` logic in `api-client.ts` to allow users to gracefully cancel live generative responses.
+- **More Resilient Data Mapping**: Strengthened the `ItineraryDisplay` logic so it smartly extracts dates, destination data, and duration arrays dynamically from loosely structured backend JSON objects.
+- **UI Polishing**: Improved `BudgetBreakdown` component to better render fallback "Tips", and properly aligned display for exact flight numbers.
 
 ---
 
