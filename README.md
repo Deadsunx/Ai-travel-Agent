@@ -1,105 +1,153 @@
-# AI Travel Agent - Project Overview
+# AI Travel Agent
 
-This repository contains the **AI-powered Travel Planning Agent**, a robust full-stack application designed to generate personalized, budget-conscious travel itineraries using real-time data from multiple external APIs.
+Ask for a trip in a sentence and get a costed, day-by-day itinerary back — with
+real flight, hotel and place data, and a budget the plan is actually held to.
 
-## 🚀 Current Project State
+Next.js 14 frontend, FastAPI backend, PostgreSQL and Redis, all under Docker
+Compose. The planning itself can run two different ways, and both are kept in
+the repo so the comparison between them is checkable.
 
-The project is currently in an advanced development state with a fully functional core architecture and integrated AI agents.
+- [PROJECT_WALKTHROUGH.md](PROJECT_WALKTHROUGH.md) — the full tour
+- [WORKFLOW_DIAGRAMS.md](WORKFLOW_DIAGRAMS.md) — Mermaid diagrams of both flows
+- [MULTI_AGENT_SPEC.md](MULTI_AGENT_SPEC.md) — the graph planner's design
 
-### 🏗️ Architecture & Tech Stack
+## Two planners, and why both are still here
 
-The application is built using a modern, scalable stack:
-
-- **Frontend**: Next.js 14 (App Router) with TypeScript and Tailwind CSS (Shadcn UI).
-- **Backend**: FastAPI (Python 3.11+) orchestration.
-- **AI Agent Layer**: two selectable planners over the same tools — a deterministic
-  pipeline (default) and a LangGraph multi-agent orchestrator (see
-  [MULTI_AGENT_SPEC.md](MULTI_AGENT_SPEC.md)).
-- **Models**: local Ollama models (Qwen3, Gemma) with Google Gemini as a cloud option.
-- **Database**: PostgreSQL for persistent storage of itineraries and chat sessions.
-- **Caching**: Redis for API response caching and rate limiting.
-- **Containerization**: Fully orchestrated using Docker and Docker Compose.
-
-### 📡 API Integration Status
-
-The system uses a **Hybrid Integration** model to ensure reliability while providing real-world data:
-
-| Tool | Source | Purpose | Status |
-|------|--------|---------|--------|
-| **Flight Search** | SerpAPI (Google Flights) | Real-time flight pricing and links | ✅ Integrated with Mock Fallback |
-| **Hotel Search** | RapidAPI (Booking.com) | Real-time accommodation search | ✅ Integrated with Mock Fallback |
-| **Places Search** | OpenStreetMap (Overpass) | Eateries and sights, with coordinates | ✅ Integrated with Mock Fallback |
-| **General Search**| Google Search | Information on activities and tips | ✅ Integrated |
-
-> [!NOTE]
-> The "Mock Fallback" system ensures the agent remains functional even if API keys are missing or rate limits are reached, by providing realistic estimated data.
-
-### 🧭 Planners
-
-| Planner | Selected by | What it does |
-|---------|-------------|--------------|
-| `graph` (default) | `PLANNER=graph`, or the **Multi-agent** switch in the header | The work runs as a LangGraph state machine: a supervisor sets budget-derived constraints, three specialist desks run in parallel and explain their picks, and a critic can send the plan back for a bounded revision round. |
-| `pipeline` | `PLANNER=pipeline` | Extract parameters → fetch all sources in parallel → cost the trip → write the answer. One pass, no selection, no critic — about 17% faster. |
+| Planner | What it does |
+| --- | --- |
+| `graph` (default) | A LangGraph state machine. A supervisor turns the budget into hard constraints; three specialist desks — flights, stays, places — run in parallel and each explains its pick; a critic checks the assembled plan against those constraints and can send it back for one bounded revision round with a specific instruction. |
+| `pipeline` | Extract parameters, fetch every source in parallel, cost the trip, write the answer. One pass, no selection, no critic. |
 
 The graph is the default because it wins the golden-query comparison **15/16
-to 13/16**: it fixes both duplicate-restaurant failures and holds a plan to
-its budget. `PLANNER=pipeline` buys the latency back.
+against 13/16** — it fixes both duplicate-restaurant failures and keeps a plan
+inside its budget. It costs roughly **17% more latency**, and `PLANNER=pipeline`
+buys that back.
 
-Either planner can be picked per request (`"planner"` in the chat payload), so the
-two can be compared on the same query:
+The pipeline is not retired. It is the control: without it there is no way to
+show the graph is earning its extra complexity, and "the multi-agent version is
+better" is an assertion rather than a measurement. Either can be selected per
+request via `"planner"` in the chat payload, so the two answer the same query:
 
 ```bash
 docker compose exec backend python -m evals.run_evals --compare
 ```
 
-### ✨ Key Features Implemented
+## How it got here
 
-- **Conversational Planning**: Interactive chat interface for refining trip requirements.
-- **Intelligent Itineraries**: Day-by-day breakdowns with morning, afternoon, and evening activities.
-- **Budget Management**: Real-time cost estimation and budget compliance checking.
-- **Direct Booking**: links to Google Flights and Booking.com generated dynamically.
-- **Persistent Sessions**: Chat history and generated itineraries saved to PostgreSQL.
+The first version was a LangChain ReAct agent — the model chose tools in a loop.
+It worked, and it was untestable: the same query took different paths on
+different runs, so a regression was indistinguishable from the model having a
+different idea that day.
 
-### 📁 Project Structure
+That became a deterministic pipeline: pull the parameters out of the request
+first, then fetch everything in parallel and cost it. Predictable, and cheap to
+put tests and an eval harness around — which is what made the next step
+measurable rather than a matter of taste.
 
-```text
-AI Travel Agent PBL ANTGVT/
-├── ai-travel-agent/           # Core Application Code
-│   ├── frontend/              # Next.js Application
-│   ├── backend/               # FastAPI & LangChain Agents
-│   ├── scripts/               # Utility and Setup Scripts
-│   ├── docker-compose.yml     # Infrastructure Orchestration
-│   ├── .env                   # API keys (never commit — see .env.example)
-│   └── test_apis.py           # API Verification Utility
-└── README.md                  # This file
+The graph planner then reintroduced genuine agency, but in a shape that can be
+held to account: named nodes, explicit state, and a critic whose objections are
+rules that can be unit-tested. The pipeline stayed as the baseline it is
+measured against.
+
+## Request trace
+
+A chat request on the default planner:
+
+```
+POST /api/chat
+  intake       normalise the request into trip parameters
+  supervisor   derive hard constraints from the budget
+  specialists  flights · stays · places, in parallel, each justifying its pick
+  compose      assemble a candidate day-by-day plan
+  critic       check the plan against the constraints
+               └─ fails? one bounded revision round with a specific instruction
+  synthesis    stream the written answer back over SSE
 ```
 
----
+Every run is recorded, so the two planners can be compared on real traffic
+rather than on impressions. Streaming responses can be cancelled mid-flight.
 
-## 🛠️ Getting Started
+## Data sources, and the fallback layer
 
-### Prerequisites
+| Tool | Source | Needs a key |
+| --- | --- | --- |
+| Flights | SerpAPI (Google Flights) | yes |
+| Hotels | RapidAPI (Booking.com) | yes |
+| Places | OpenStreetMap (Overpass) | no |
+| General search | Google Search | yes |
 
-- Docker & Docker Compose
-- Ollama running on the host (or a Google Gemini key), plus SerpAPI and RapidAPI keys.
-  OpenStreetMap needs no key; every source has a mock fallback, so the app runs without any of them.
+Every one of them has a mock fallback, and that is a deliberate design choice
+rather than a convenience. Three of the four sources are rate-limited free
+tiers: a demo that dies on a 429 in front of an audience is worse than one that
+degrades. So a missing key or a rate-limit response falls back to realistic
+estimated data **and says which source is estimated and why**, rather than
+silently presenting a guess as a live price.
 
-### Quick Run
+It also means the whole stack runs with no keys at all, which is what lets the
+test suite be fully offline.
 
-1. Navigate to the core directory:
+## Tests
 
-   ```bash
-   cd ai-travel-agent
-   ```
+```bash
+cd ai-travel-agent/backend
+pip install -r requirements-dev.txt
+pytest -q
+```
 
-2. Copy `.env.example` to `.env` and fill in your API keys (never commit this file).
-3. Start the entire stack:
+129 tests, no network, no services required — they run in CI on every push and
+pull request. They cover the critic's rules, the revision loop, graph
+construction and state, node selection, telemetry, and a parity test asserting
+both planners satisfy the same interface identically.
 
-   ```bash
-   docker-compose up --build
-   ```
+The eval harness scores end-to-end runs against golden queries without an LLM
+judge, including adversarial cases: an impossible budget, a 14-day trip, and
+deliberately conflicting interests.
 
-4. Access the application at `http://localhost:3000`.
+## Stack
 
----
-*Built as a Project-Based Learning (PBL) initiative focusing on Agentic AI and Real-time API Orchestration.*
+- **Frontend** — Next.js 14 (App Router), TypeScript, Tailwind, shadcn/ui
+- **Backend** — FastAPI, Python 3.11
+- **Orchestration** — LangGraph for the `graph` planner
+- **Models** — local Ollama (Qwen3, Gemma), or Google Gemini
+- **Storage** — PostgreSQL for itineraries and sessions, Redis for caching and
+  rate limiting
+- **Infrastructure** — Docker Compose
+
+## Running it
+
+Prerequisites: Docker and Docker Compose. Ollama on the host or a Gemini key.
+SerpAPI and RapidAPI keys are optional — without them those sources use their
+mock fallback.
+
+```bash
+cd ai-travel-agent
+cp .env.example .env      # then fill in whichever keys you have
+docker-compose up --build
+```
+
+The app comes up at `http://localhost:3000`.
+
+## Layout
+
+```text
+ai-travel-agent/
+├── frontend/                 Next.js app
+├── backend/
+│   ├── app/agents/graph/     the LangGraph planner — nodes, state, rules
+│   ├── app/agents/           the pipeline planner, streaming, telemetry
+│   ├── app/tools/            external API clients and their fallbacks
+│   ├── tests/                offline test suite
+│   └── evals/                golden queries and the comparison harness
+├── scripts/                  setup utilities
+└── docker-compose.yml
+```
+
+## On AI assistance
+
+Parts of this were written with AI assistance, including some of the code and
+an earlier draft of these docs. What I decided myself: that the ReAct loop had
+to go because it could not be tested, that the pipeline should survive as the
+control rather than be deleted once the graph beat it, and that the critic's
+objections belong in testable rules instead of a prompt. The eval numbers above
+are the ones the harness prints — including the cases where the graph does not
+win.
