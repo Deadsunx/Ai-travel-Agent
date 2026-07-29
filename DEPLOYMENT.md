@@ -1,5 +1,19 @@
 # Deploying Travel Desk
 
+Everything deploys from the **`deploy`** branch, never from `main`. Merging
+work into `main` should not put it in front of users; you promote when you
+mean to:
+
+```bash
+git checkout deploy
+git merge main
+git push origin deploy      # this is what triggers a deployment
+```
+
+Both hosts must be told this, or they will follow `main` by default:
+`render.yaml` sets `branch: deploy`, and Vercel needs **Settings → Git →
+Production Branch → `deploy`**.
+
 Four free services, none of which need a card:
 
 | Piece | Host | Why |

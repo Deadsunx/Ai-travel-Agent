@@ -12,6 +12,9 @@ services:
     name: travel-desk-api
     runtime: docker
     plan: free
+    # Deployments track `deploy`, not `main`: merging work into main should
+    # not push it live. Promote by merging main into deploy when you mean to.
+    branch: deploy
     rootDir: ai-travel-agent/backend
     dockerfilePath: ./Dockerfile
     healthCheckPath: /health/
