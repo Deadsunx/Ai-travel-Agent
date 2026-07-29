@@ -1,5 +1,9 @@
 # Render blueprint for the backend.
 #
+# Lives at the repository root because that is where Render looks unless
+# told otherwise; rootDir below points it at the backend. Paths in this
+# file are always relative to the repository root, not to this file.
+#
 # The frontend goes to Vercel; Postgres and Redis are managed elsewhere
 # (Neon and Upstash free tiers) because Render's own free Postgres expires
 # after 90 days, which is a bad surprise to schedule for yourself.

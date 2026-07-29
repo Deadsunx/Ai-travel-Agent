@@ -56,8 +56,10 @@ APIs, so it is worth the five minutes.
 
 ## 3. Backend (Render)
 
-**New → Blueprint**, point it at this repo. `ai-travel-agent/render.yaml`
-describes the service; Render will ask for the values marked `sync: false`:
+**New → Blueprint**, point it at this repo and set **Branch** to `deploy`.
+Leave **Blueprint Path** empty — `render.yaml` sits at the repository root,
+which is where Render looks by default. It then asks for the values marked
+`sync: false`:
 
 | Variable | Value |
 |---|---|
