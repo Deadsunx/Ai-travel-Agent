@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 import uvicorn
 
 from app.config import settings
-from app.api.routes import chat, itinerary, health, manual_plan
+from app.api.routes import chat, itinerary, health, manual_plan, models
 from app.models.database import Base
 from app.services.db_service import engine, init_db
 
@@ -56,12 +56,10 @@ app = FastAPI(
 # CORS Configuration - Allow frontend to connect
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-        "http://localhost:3001",
-        "https://yourdomain.com"  # Add your production domain
-    ],
+    # Local development origins are always allowed; deployed frontends are
+    # added through ALLOWED_ORIGINS (comma-separated), because a hosted
+    # frontend lives on a domain this file cannot know.
+    allow_origins=settings.allowed_origins_list,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -72,6 +70,7 @@ app.add_middleware(
 # Include routers
 app.include_router(health.router, prefix="/health", tags=["Health"])
 app.include_router(chat.router, prefix="/api/chat", tags=["Chat"])
+app.include_router(models.router, prefix="/api/models", tags=["Models"])
 app.include_router(itinerary.router, prefix="/api/itinerary", tags=["Itinerary"])
 app.include_router(manual_plan.router, prefix="/api", tags=["Manual Planning"])
 

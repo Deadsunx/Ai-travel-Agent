@@ -1,20 +1,21 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import ChatInterface from '@/components/chat/ChatInterface'
 import ManualPlanningForm from '@/components/planning/ManualPlanningForm'
 import ItineraryDisplay from '@/components/itinerary/ItineraryDisplay'
 import { Sun, Moon } from 'lucide-react'
 import { useTheme } from '@/components/ui/ThemeProvider'
 import SourceLedger, { IDLE_SOURCES, SourceMap } from '@/components/ui/SourceLedger'
+import { fetchModels, ModelOption } from '@/lib/api-client'
 
-const MODELS = [
-    { value: 'qwen3.5:4b', label: 'Qwen3.5 4B' },
-    { value: 'qwen3:8b', label: 'Qwen3 8B' },
-    { value: 'qwen3.5:latest', label: 'Qwen3.5 9B' },
-    { value: 'gemma2:9b', label: 'Gemma2 9B' },
-    { value: 'gemini-flash-latest', label: 'Gemini Flash (cloud)' },
-    { value: 'gemini-flash-lite-latest', label: 'Gemini Flash Lite (cloud)' },
+/**
+ * Shown until the server answers, and kept if it never does — the picker
+ * should never be empty. Everything is marked unavailable, because until
+ * the server says otherwise we genuinely do not know what it can run.
+ */
+const UNKNOWN_MODELS: ModelOption[] = [
+    { value: 'gemini-flash-latest', label: 'Gemini Flash', kind: 'cloud', available: true, reason: null },
 ]
 
 // Which planner runs the request: the deterministic pipeline, or the
@@ -26,11 +27,34 @@ const PLANNERS = [
 
 export default function Home() {
     const [mode, setMode] = useState<'chat' | 'manual'>('chat')
-    const [selectedModel, setSelectedModel] = useState<string>('qwen3.5:4b')
+    const [models, setModels] = useState<ModelOption[]>(UNKNOWN_MODELS)
+    const [selectedModel, setSelectedModel] = useState<string>('gemini-flash-latest')
     const [selectedPlanner, setSelectedPlanner] = useState<string>('graph')
     const [itinerary, setItinerary] = useState<any>(null)
     const [sources, setSources] = useState<SourceMap>(IDLE_SOURCES)
     const { theme, toggleTheme } = useTheme()
+
+    // Which models this backend can run is the server's answer: local ones
+    // need Ollama beside it, which a hosted deployment does not have.
+    useEffect(() => {
+        let cancelled = false
+        fetchModels()
+            .then(({ models: listed, default: fallback }) => {
+                if (cancelled || !listed?.length) return
+                setModels(listed)
+                setSelectedModel(fallback)
+            })
+            .catch(() => {
+                // Backend unreachable — keep the placeholder rather than
+                // showing an empty picker.
+            })
+        return () => { cancelled = true }
+    }, [])
+
+    // The per-option `title` carries the server's own wording; the note
+    // below only needs to appear when something is actually locked.
+    const hasLockedModels = models.some(m => !m.available)
+    const lockedNote = models.find(m => !m.available)?.reason
 
     return (
         <main className="min-h-screen">
@@ -50,11 +74,20 @@ export default function Home() {
                             id="model"
                             value={selectedModel}
                             onChange={(e) => setSelectedModel(e.target.value)}
+                            title={lockedNote || undefined}
                             className="data bg-transparent border border-rule rounded-stub text-[0.6875rem] uppercase tracking-[0.1em] text-muted px-2.5 py-2 hover:text-ink focus:outline-none focus-visible:outline-2"
                         >
-                            {MODELS.map((m) => (
-                                <option key={m.value} value={m.value} className="bg-card text-ink">
-                                    {m.label}
+                            {models.map((m) => (
+                                <option
+                                    key={m.value}
+                                    value={m.value}
+                                    disabled={!m.available}
+                                    title={m.reason || undefined}
+                                    className="bg-card text-ink"
+                                >
+                                    {/* Locked models stay listed: the point is to show
+                                        what the project can do, and how to get it. */}
+                                    {m.available ? m.label : `🔒 ${m.label}`}
                                 </option>
                             ))}
                         </select>
@@ -99,6 +132,17 @@ export default function Home() {
                             price the whole trip in rupees, and mark every number with where
                             it came from.
                         </p>
+
+                        {/* A disabled <option> cannot be relied on to show a
+                            tooltip, so the reason is stated in the page. */}
+                        {hasLockedModels && (
+                            <p className="mt-5 pl-3 border-l border-rule text-xs leading-relaxed text-muted max-w-md">
+                                🔒 The local models are locked here — this deployment has no
+                                GPU of its own. Clone the repo and run it alongside Ollama
+                                to use them. Gemini runs on Google&apos;s side, so it works
+                                from anywhere.
+                            </p>
+                        )}
 
                         <div className="mt-8 flex flex-wrap gap-2">
                             <button

@@ -1,0 +1,60 @@
+# Render blueprint for the backend.
+#
+# The frontend goes to Vercel; Postgres and Redis are managed elsewhere
+# (Neon and Upstash free tiers) because Render's own free Postgres expires
+# after 90 days, which is a bad surprise to schedule for yourself.
+#
+# Deploy: Render dashboard → New → Blueprint → point at this repo.
+# Then set the four secret values marked sync:false below.
+
+services:
+  - type: web
+    name: travel-desk-api
+    runtime: docker
+    plan: free
+    rootDir: ai-travel-agent/backend
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health/
+    envVars:
+      # --- data services (Neon / Upstash connection strings) -------------
+      - key: DATABASE_URL
+        sync: false
+      - key: REDIS_URL
+        sync: false
+
+      # --- models --------------------------------------------------------
+      # No Ollama here, so the local models are locked and Gemini is the
+      # default. OPENAI_API_BASE is deliberately left empty: pointing it at
+      # an Ollama that does not exist would make the catalog probe wait.
+      - key: GOOGLE_API_KEY
+        sync: false
+      - key: MODEL_NAME
+        value: gemini-flash-latest
+      - key: OPENAI_API_BASE
+        value: ""
+
+      # --- planner -------------------------------------------------------
+      - key: PLANNER
+        value: graph
+      - key: MAX_REVISIONS
+        value: "2"
+
+      # --- travel data ---------------------------------------------------
+      # Optional. Without them flights and hotels fall back to clearly
+      # marked estimates; OpenStreetMap needs no key.
+      - key: SERPAPI_KEY
+        sync: false
+      - key: RAPIDAPI_KEY
+        sync: false
+
+      # --- app -----------------------------------------------------------
+      # The Vercel domain, comma-separated. Without it the browser is
+      # blocked by CORS and every request fails before it starts.
+      - key: ALLOWED_ORIGINS
+        sync: false
+      - key: RATE_LIMIT_PER_HOUR
+        value: "20"
+      - key: ENVIRONMENT
+        value: production
+      - key: SECRET_KEY
+        generateValue: true

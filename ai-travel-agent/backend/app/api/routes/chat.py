@@ -1,11 +1,13 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import Optional
 import json
 import asyncio
 
+from app.agents.catalog import available_models, default_model, is_available
 from app.agents.travel_agent import create_planner
+from app.config import settings
 from app.services.redis_service import redis_service
 from app.services.db_service import save_chat_message
 from app.models.schemas import ChatRequest
@@ -16,20 +18,64 @@ router = APIRouter()
 _cancel_events: dict[str, asyncio.Event] = {}
 
 
+def client_key(request: Request, chat_request: ChatRequest) -> str:
+    """Who to rate limit.
+
+    Prefers the client IP: a session id is generated in the browser, so
+    limiting on it only asks an abusive client to press refresh. Render and
+    Vercel both sit behind proxies, so the first hop of X-Forwarded-For is
+    the real client.
+    """
+    if chat_request.user_id:
+        return f"user:{chat_request.user_id}"
+
+    forwarded = request.headers.get("x-forwarded-for", "")
+    if forwarded:
+        return f"ip:{forwarded.split(',')[0].strip()}"
+
+    client = request.client
+    return f"ip:{client.host}" if client else f"session:{chat_request.session_id}"
+
+
+def resolve_model(requested: Optional[str]) -> str:
+    """The model to run, or a 400 explaining why the requested one cannot.
+
+    Without this, asking a cloud deployment for a local model means waiting
+    out a connection timeout to an Ollama that was never there.
+    """
+    if not requested:
+        return default_model()
+
+    if is_available(requested):
+        return requested
+
+    runnable = [m["label"] for m in available_models() if m["available"]]
+    detail = next(
+        (m["reason"] for m in available_models() if m["value"] == requested),
+        "That model is not available on this server.",
+    )
+    raise HTTPException(
+        status_code=400,
+        detail=f"{detail} Available here: {', '.join(runnable) or 'none'}.",
+    )
+
+
 @router.post("/")
-async def chat(request: ChatRequest):
+async def chat(request: ChatRequest, http_request: Request):
     """
     Main chat endpoint with streaming response
     """
-    
+
     # Rate limiting
-    user_id = request.user_id or request.session_id
-    if not redis_service.check_rate_limit(user_id, max_requests=20):
+    limit = settings.rate_limit_per_hour
+    if not redis_service.check_rate_limit(client_key(http_request, request), max_requests=limit):
         raise HTTPException(
             status_code=429,
-            detail="Rate limit exceeded. You can make 20 requests per hour. Please try again later."
+            detail=f"Rate limit exceeded. You can make {limit} requests per hour. Please try again later."
         )
-    
+
+    model = resolve_model(request.model)
+
     try:
         # Stream response — events come straight from the agent pipeline:
         # real per-tool progress and real LLM tokens (no post-hoc re-chunking).
@@ -42,7 +88,6 @@ async def chat(request: ChatRequest):
 
             try:
                 # Initialize planner ("pipeline" or "graph"; see create_planner)
-                model = request.model or "qwen3:8b"
                 agent = create_planner(
                     session_id=request.session_id,
                     model_name=model,
@@ -100,22 +145,23 @@ async def cancel_chat(session_id: str):
 
 
 @router.post("/sync")
-async def chat_sync(request: ChatRequest):
+async def chat_sync(request: ChatRequest, http_request: Request):
     """
     Non-streaming chat endpoint - returns complete response
     """
-    
+
     # Rate limiting
-    user_id = request.user_id or request.session_id
-    if not redis_service.check_rate_limit(user_id, max_requests=20):
+    limit = settings.rate_limit_per_hour
+    if not redis_service.check_rate_limit(client_key(http_request, request), max_requests=limit):
         raise HTTPException(
             status_code=429,
             detail="Rate limit exceeded. Please try again later."
         )
-    
+
+    model = resolve_model(request.model)
+
     try:
         # Initialize planner ("pipeline" or "graph"; see create_planner)
-        model = request.model or "qwen3:8b"
         agent = create_planner(
             session_id=request.session_id,
             model_name=model,

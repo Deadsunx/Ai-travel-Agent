@@ -41,6 +41,29 @@ export interface StreamEvent {
     actions?: string[]
 }
 
+export interface ModelOption {
+    value: string
+    label: string
+    kind: 'local' | 'cloud'
+    available: boolean
+    reason: string | null
+}
+
+/**
+ * Ask the server which models it can actually run.
+ *
+ * Local models need Ollama on the same machine as the backend, which a
+ * hosted deployment does not have — so availability is the server's answer
+ * to give, not something the browser can assume.
+ */
+export async function fetchModels(): Promise<{ models: ModelOption[]; default: string }> {
+    const response = await fetch(`${API_URL}/api/models/`)
+    if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+    }
+    return response.json()
+}
+
 /**
  * Send a message to the chat API with SSE streaming
  */
