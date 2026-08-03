@@ -1,0 +1,56 @@
+# Keeps the Render backend awake during the hours people actually visit.
+#
+# Render's free tier sleeps a service after 15 minutes without traffic, and
+# waking it takes roughly 50 seconds — long enough that a first-time visitor
+# assumes the site is broken. Pinging it keeps that cost off them.
+#
+# It deliberately does NOT run around the clock. Free instance hours are
+# 750/month across the whole Render account, and an always-on service burns
+# ~730 of them, leaving nothing for anything else hosted there.
+#
+#   window below : 06:00-18:59 UTC = 11:30-00:29 IST  (~13h/day, ~390h/month)
+#
+# To shift it, edit the hour range in the cron line. GitHub schedules are in
+# UTC, so subtract 5:30 from the IST hours you want.
+#
+# Note: scheduled workflows only run on the repository's default branch, and
+# GitHub disables them after 60 days without repository activity.
+
+name: Keep the API warm
+
+on:
+  schedule:
+    # Every 5 minutes inside the window. Render sleeps at 15 minutes idle and
+    # GitHub runs scheduled jobs late under load, so a 5-minute request gives
+    # two chances to miss before the service actually drops off.
+    - cron: '*/5 6-18 * * *'
+  workflow_dispatch:        # lets you trigger it by hand to test
+
+concurrency:
+  group: keep-warm
+  cancel-in-progress: false
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Wake the backend
+        env:
+          # The root endpoint on purpose: it touches no database, no Redis
+          # and no model, so this cannot run up Neon compute hours or a
+          # Gemini bill. /health/ would do all three.
+          URL: https://travel-desk-api.onrender.com/
+        run: |
+          for attempt in 1 2; do
+            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 90 "$URL" || echo 000)
+            echo "attempt $attempt: HTTP $code"
+            if [ "$code" = "200" ]; then
+              exit 0
+            fi
+            # A sleeping container often wakes on the request that timed out,
+            # so the retry is usually the one that succeeds.
+            sleep 20
+          done
+          echo "::error::Backend did not answer with 200 after two attempts"
+          exit 1
